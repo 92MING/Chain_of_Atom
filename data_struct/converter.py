@@ -1,0 +1,78 @@
+from utils.global_value_utils import GetOrAddGlobalValue
+import re
+
+_CONVERTER_CLSES = GetOrAddGlobalValue('_CONVERTER_CLSES', dict()) # type : converter
+_INITED_CONVERTER_CLSES = GetOrAddGlobalValue('_INITED_CONVERTER_CLSES', dict()) # cls_name : converter
+class ConverterMeta(type):
+    def __new__(self, *args, **kwargs):
+        cls_name = args[0]
+        if cls_name != 'Converter' and cls_name not in _INITED_CONVERTER_CLSES:
+            cls = super().__new__(self, *args, **kwargs)
+            _CONVERTER_CLSES[cls.type_name()] = cls
+            _INITED_CONVERTER_CLSES[cls_name] = cls
+            return cls
+        if cls_name == 'Converter':
+            return super().__new__(self, *args, **kwargs)
+        else:
+            return _CONVERTER_CLSES[cls_name] # return the existed converter
+
+class Converter(metaclass=ConverterMeta):
+    '''
+    Converter is those static classes for converting value to specific type.
+    This is the base class of all converters.
+    Converter classes not allow to have same class name.
+    '''
+
+    def __class_getitem__(cls, item):
+        """You can access the converter by Converter[type]."""
+        if isinstance(item,type):
+            try:
+                item = item.__qualname__
+            except:
+                item = item.__name__
+        try:
+            return _CONVERTER_CLSES[item]
+        except:
+            raise KeyError(f'Converter with output type:{item} is not implemented.')
+    def __init__(self):
+        raise Exception("Converter is a static class, don't initialize it. You cound use Converter['type'] to get the converter with output type.")
+
+    @classmethod
+    def type_name(cls):
+        try:
+            return cls.type().__qualname__
+        except:
+            return cls.type().__name__
+
+    @classmethod
+    def type(self):
+        '''override this method to specify the output type of the converter'''
+        raise NotImplementedError
+    @classmethod
+    def convert(cls, value):
+        '''override this method to specify the convert method. Note that input value can be any type.'''
+        raise NotImplementedError
+
+
+class IntConverter(Converter):
+    @classmethod
+    def type(cls):
+        return int
+    @classmethod
+    def convert(cls, value):
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            value = value.strip()
+            if str.isdigit(value):
+                return int(value)
+            # try match the first int
+            match = re.match(r'(-?\d+)', value)
+            if match is not None:
+                return int(match.group(1))
+            raise ValueError(f'Cannot convert {value} to int')
+        else:
+            try:
+                return int(value)
+            except:
+                raise ValueError(f'Cannot convert {value} to int')

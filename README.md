@@ -1,2 +1,2 @@
 # Inverse_ToT
-Inverse Tree of Thoughts for LLM
+Inverse-Tree-of-Thoughts for Language Model.

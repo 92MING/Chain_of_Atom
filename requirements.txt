@@ -1,0 +1,7 @@
+openai
+tiktoken
+numpy
+sqlite_utils
+pycryptodome
+matplotlib
+plotly
