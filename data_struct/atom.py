@@ -3,6 +3,20 @@ from .param import Param
 from typing import Tuple
 from utils.AI_utils import get_embedding_vector
 from utils.global_value_utils import GetOrAddGlobalValue
+from utils.path_utils import ATOM_DATA_PATH
+from utils.sqlite_utils import Database, NotFoundError
+
+# region database
+_ATOM_DATA_DB = Database(ATOM_DATA_PATH)
+_PREDEFINED_ATOM_CLSES_TABLE = _ATOM_DATA_DB.create_table(name='predefined_atom_clses',
+                                                         columns={'id':int, 'cls_name':str, 'prompt':str,},
+                                                         pk='id',
+                                                         autoincrement='id',
+                                                         if_not_exists=True)
+'''All predefined atom classes(predefined atom means atoms written in .py). Mainly use for saving their id.'''
+_PREDEFINED_ATOM_CLSES_TABLE.create_index(columns='cls_name', if_not_exists=True)
+
+# endregion
 
 # region atom base class
 _ATOM_CLSES = GetOrAddGlobalValue('_ATOM_CLSES', dict()) # cls name : atom cls
@@ -15,12 +29,17 @@ class AtomMeta(type):
             if cls.prompt is None:
                 raise Exception(f'Atom {cls_name} should have a prompt.')
             _ATOM_CLSES[cls_name] = cls
+            if _PREDEFINED_ATOM_CLSES_TABLE.find_first(f'cls_name="{cls_name}"') is None:
+                _PREDEFINED_ATOM_CLSES_TABLE.insert({'cls_name':cls_name, 'prompt':cls.prompt})
+                cls._id = _PREDEFINED_ATOM_CLSES_TABLE.find_first(f'cls_name="{cls_name}"')['id']
+            else:
+                cls._id = _PREDEFINED_ATOM_CLSES_TABLE.find_first(f'cls_name="{cls_name}"')['id']
+                _PREDEFINED_ATOM_CLSES_TABLE.update({'id':cls._id, 'cls_name':cls_name, 'prompt':cls.prompt})
             return cls
         if cls_name == 'Atom':
             return super().__new__(self, *args, **kwargs)
         else:
             return _ATOM_CLSES[cls_name]
-
 class Atom(metaclass=AtomMeta):
     '''
     Atom is 1 single action with clear param/ result description. It is a basic unit of a step.
@@ -34,11 +53,16 @@ class Atom(metaclass=AtomMeta):
     '''Override this cls property to specify the output params of the atom.'''
     prompt:str = None
     '''Override this to describe the atom function.'''
+
     _prompt_embed : np.array = None
+    _id :int = None # the unique id of this atom in sql table
 
     def __init__(self):
         raise Exception("Atom is a static class, don't initialize it. You should herit to define your own atom with input/ output params and run method.")
-
+    @classmethod
+    def id(cls):
+        '''Get the unique id of this atom.'''
+        return cls._id
     @classmethod
     def inputVals(cls):
         '''Get the inputted values of this atom. Note that "call" method should be called in advance.'''
@@ -110,6 +134,7 @@ def all_atom_outputs()->Tuple[Tuple[Param, ...], ...]:
 
 def k_similar_atoms(prompt:str, k=5):
     '''Get k similar atoms with the input prompt.'''
+    # TODO: use fine-tuned BERT to get embedding vectors
     # TODO: use KNN to get k similar atoms
     prompt_embed = get_embedding_vector(prompt)
     return sorted(_ATOM_CLSES.values(), key=lambda atom: np.dot(atom.prompt_embed(), prompt_embed))[:k]

@@ -8,8 +8,7 @@ from .global_value_utils import *
 from .classes.cross_module_enum import CrossModuleEnum
 from .crypto_utils import getSHA256Hash_fromString
 from typing import Iterable, Union
-from sqlite_utils import Database
-from sqlite_utils.db import NotFoundError
+from utils.sqlite_utils import Database, NotFoundError
 
 _enc = GetOrAddGlobalValue("_OPENAI_ENCODING", tiktoken.get_encoding('cl100k_base'))
 _apiKeys:set = GetOrAddGlobalValue("_OPENAI_API_KEYS", set())
