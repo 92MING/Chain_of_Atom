@@ -36,8 +36,8 @@ class Permutations(Atom):
 
 class Sort(Atom):
     inputs = (Param('List of numbers for sorting', list, converter=NumListConverter), Param('Whether to sort in descending order', bool, default=False))
-    outputs = (Param('List of numbers after sorting', list), )
-    prompt = 'Sort a list of numbers. e.g. [3,2,1] => [1,2,3]'
+    outputs = (Param('Sorted list of numbers', list), )
+    prompt = 'Sort a list of numbers. e.g. [3,2,1] => [1,2,3]. You can also sort in descending order.'
     @classmethod
     def run(cls, elements:list, descending:bool=False):
         return sorted(elements, reverse=descending)
