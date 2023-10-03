@@ -1,6 +1,7 @@
 from .converter import Converter
 import numpy as np
 from utils.AI_utils import get_embedding_vector
+from typing import Callable
 
 class Param:
     '''Param is a class that stores info for input/output of an atom.'''
@@ -24,7 +25,14 @@ class Param:
         else: # try to convert
             try:
                 if self.converter is not None:
-                    self._value = self.converter(value)
+                    if isinstance(self.converter, Converter):
+                        self._value = self.converter.convert(value)
+                    elif isinstance(self.converter, Callable):
+                        self._value = self.converter(value)
+                    elif isinstance(self.converter, type):
+                        self._value = self.converter(value)
+                    else:
+                        raise Exception(f'Cannot convert {value} to {self.expected_type} with converter: {self.converter}.')
                 else:
                     try:
                         converter = Converter[self.expected_type]

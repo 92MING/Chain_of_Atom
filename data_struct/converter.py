@@ -1,5 +1,5 @@
 from utils.global_value_utils import GetOrAddGlobalValue
-import re
+import re, sympy
 from typing import Sequence
 
 _CONVERTER_CLSES = GetOrAddGlobalValue('_CONVERTER_CLSES', dict()) # type : converter
@@ -165,3 +165,16 @@ class BoolConverter(Converter):
             return bool(value)
         except:
             raise ValueError(f'Cannot convert {value} to bool')
+
+class StrConverter(Converter):
+    @classmethod
+    def type(cls):
+        return str
+    @classmethod
+    def convert(cls, value):
+        if isinstance(value, str):
+            return value
+        try:
+            return str(value)
+        except:
+            raise ValueError(f'Cannot convert {value} to str')

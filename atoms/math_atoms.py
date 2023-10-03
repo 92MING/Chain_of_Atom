@@ -1,4 +1,5 @@
 '''contains all the atoms related to math calculation'''
+import sympy
 
 from data_struct.atom import Atom
 from data_struct.param import Param
@@ -10,7 +11,24 @@ class CalculateFormula(Atom):
     prompt = 'Calculate a formula, e.g. 1+2*3, and get the result.'
     @classmethod
     def run(cls, formula:str):
+        _replace_dict = {
+            'pi': 'sympy.pi',
+            'π': 'sympy.pi',
+            'e': 'sympy.E',
+            '^': '**',
+            'inf': 'sympy.oo',
+            '∞': 'sympy.oo',
+            '√': 'sympy.sqrt',
+            'sqrt': 'sympy.sqrt',
+            'sin': 'sympy.sin',
+            'cos': 'sympy.cos',
+            'tan': 'sympy.tan',
+        }
+        for key, value in _replace_dict.items():
+            formula = formula.replace(key, value)
         result = eval(formula)
+        if isinstance(result, sympy.Expr):
+            return result.evalf()
         return result
 
 class VerifyFormulaResult(Atom):
@@ -41,4 +59,5 @@ class Sort(Atom):
     @classmethod
     def run(cls, elements:list, descending:bool=False):
         return sorted(elements, reverse=descending)
+
 
