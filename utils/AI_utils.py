@@ -142,7 +142,6 @@ def get_chat(messages, roles=None, model:ChatModel=ChatModel.GPT3_5, temperature
 def normalize(vector):
     return vector / np.linalg.norm(vector)
 
-
 def cosine_similarity(v1, v2):
     '''調用openai.embeddings_utils.cosine_similarity'''
     if isinstance(v1, list):
@@ -152,5 +151,7 @@ def cosine_similarity(v1, v2):
     v1.reshape(1, -1)
     v2.reshape(-1, 1)
     return _cosine_similarity(v1, v2)
+
+
 
 __all__ = ['addAPIKey', 'get_tokens', 'count_tokens', 'get_embedding_vector', 'get_chat', 'normalize', 'cosine_similarity', 'ChatModel']

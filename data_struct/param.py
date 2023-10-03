@@ -1,4 +1,6 @@
 from .converter import Converter
+import numpy as np
+from utils.AI_utils import get_embedding_vector
 
 class Param:
     '''Param is a class that stores info for input/output of an atom.'''
@@ -14,6 +16,7 @@ class Param:
         self.converter = converter
         self.default = default
         self._value = None # store the value of the param
+        self._prompt_embed : np.array = None # store the embedding of the prompt
 
     def input(self, value):
         if isinstance(value, self.expected_type): # no need to convert
@@ -34,3 +37,12 @@ class Param:
     @property
     def value(self):
         return self._value if self._value is not None else self.default
+
+    @property
+    def prompt_embed(self, embeder:callable=None):
+        if self._prompt_embed is None:
+            if embeder is not None:
+                self._prompt_embed = embeder(self.prompt)
+            else:
+                self._prompt_embed = get_embedding_vector(self.prompt)
+        return self._prompt_embed

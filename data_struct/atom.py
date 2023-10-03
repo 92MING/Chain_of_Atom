@@ -1,16 +1,19 @@
+import numpy as np
 from .param import Param
-from typing import Tuple, Iterable
-
+from typing import Tuple
+from utils.AI_utils import get_embedding_vector
 from utils.global_value_utils import GetOrAddGlobalValue
 
 # region atom base class
 _ATOM_CLSES = GetOrAddGlobalValue('_ATOM_CLSES', dict()) # cls name : atom cls
-def AtomMeta(type):
+class AtomMeta(type):
     '''AtomMeta is a metaclass for Atom. It will save all atom prompts for searching process.'''
     def __new__(self, *args, **kwargs):
         cls_name = args[0]
         if cls_name != 'Atom' and cls_name not in _ATOM_CLSES:
             cls = super().__new__(self, *args, **kwargs)
+            if cls.prompt is None:
+                raise Exception(f'Atom {cls_name} should have a prompt.')
             _ATOM_CLSES[cls_name] = cls
             return cls
         if cls_name == 'Atom':
@@ -29,6 +32,9 @@ class Atom(metaclass=AtomMeta):
     '''Override this cls property to specify the input params of the atom.'''
     outputs:Tuple[Param, ...] = None
     '''Override this cls property to specify the output params of the atom.'''
+    prompt:str = None
+    '''Override this to describe the atom function.'''
+    _prompt_embed : np.array = None
 
     def __init__(self):
         raise Exception("Atom is a static class, don't initialize it. You should herit to define your own atom with input/ output params and run method.")
@@ -38,9 +44,26 @@ class Atom(metaclass=AtomMeta):
         '''Get the inputted values of this atom. Note that "call" method should be called in advance.'''
         return tuple(param.value for param in cls.inputs)
     @classmethod
+    def input_prompt_embeds(cls):
+        '''Get the prompt embed of each param this atom. '''
+        return tuple(param.prompt_embed for param in cls.inputs)
+    @classmethod
     def outputVals(cls):
         '''Get the outputted values of this atom. Note that "call" method should be called in advance.'''
         return tuple(param.value for param in cls.outputs)
+    @classmethod
+    def output_prompt_embeds(cls):
+        '''Get the prompt embed of each param this atom. '''
+        return tuple(param.prompt_embed for param in cls.outputs)
+    @classmethod
+    def prompt_embed(self, embeder:callable=None):
+        '''Get the prompt embed of this atom. '''
+        if self._prompt_embed is None:
+            if embeder is not None:
+                self._prompt_embed = embeder(self.prompt)
+            else:
+                self._prompt_embed = get_embedding_vector(self.prompt)
+        return self._prompt_embed
 
     @classmethod
     def call(cls, *values):
@@ -58,11 +81,12 @@ class Atom(metaclass=AtomMeta):
         result = cls.run(*cls.inputVals())
 
         # save the result into output params
-        if isinstance(result, Iterable) and not isinstance(result, str):
+        if len(cls.outputs) > 1:
             for i, value in enumerate(result):
                 cls.outputs[i].input(value)
         else:
             cls.outputs[0].input(result)
+        return cls
 
     @classmethod
     def run(self, *inputs):
@@ -71,13 +95,23 @@ class Atom(metaclass=AtomMeta):
 # endregion
 
 # region static methods
-def AllAtomClses():
+def all_atom_clses():
     '''Get all atom classes.'''
     return _ATOM_CLSES.values()
-def AllAtomInputs()->Tuple[Tuple[Param, ...], ...]:
+def all_atom_prompts()->Tuple[str, ...]:
+    '''Get all atom prompts.'''
+    return tuple(atom.prompt for atom in all_atom_clses())
+def all_atom_inputs()->Tuple[Tuple[Param, ...], ...]:
     '''Get all atom input params.'''
-    return tuple(atom.inputs for atom in AllAtomClses())
-def AllAtomOutputs()->Tuple[Tuple[Param, ...], ...]:
+    return tuple(atom.inputs for atom in all_atom_clses())
+def all_atom_outputs()->Tuple[Tuple[Param, ...], ...]:
     '''Get all atom output params.'''
-    return tuple(atom.outputs for atom in AllAtomClses())
+    return tuple(atom.outputs for atom in all_atom_clses())
+
+def k_similar_atoms(prompt:str, k=5):
+    '''Get k similar atoms with the input prompt.'''
+    # TODO: use KNN to get k similar atoms
+    prompt_embed = get_embedding_vector(prompt)
+    return sorted(_ATOM_CLSES.values(), key=lambda atom: np.dot(atom.prompt_embed(), prompt_embed))[:k]
+
 # endregion

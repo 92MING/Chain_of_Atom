@@ -15,7 +15,6 @@ class ConverterMeta(type):
             return super().__new__(self, *args, **kwargs)
         else:
             return _CONVERTER_CLSES[cls_name] # return the existed converter
-
 class Converter(metaclass=ConverterMeta):
     '''
     Converter is those static classes for converting value to specific type.
@@ -53,7 +52,6 @@ class Converter(metaclass=ConverterMeta):
         '''override this method to specify the convert method. Note that input value can be any type.'''
         raise NotImplementedError
 
-
 class IntConverter(Converter):
     @classmethod
     def type(cls):
@@ -76,3 +74,43 @@ class IntConverter(Converter):
                 return int(value)
             except:
                 raise ValueError(f'Cannot convert {value} to int')
+
+class FloatConverter(Converter):
+    @classmethod
+    def type(cls):
+        return float
+    @classmethod
+    def convert(cls, value):
+        if isinstance(value, float):
+            return value
+        if isinstance(value, str):
+            value = value.strip()
+            if str.isdigit(value):
+                return float(value)
+            # try match the first float
+            match = re.match(r'(-?\d+\.?\d*)', value)
+            if match is not None:
+                return float(match.group(1))
+            raise ValueError(f'Cannot convert {value} to float')
+        else:
+            try:
+                return float(value)
+            except:
+                raise ValueError(f'Cannot convert {value} to float')
+
+class ListConverter(Converter):
+    @classmethod
+    def type(cls):
+        return list
+    @classmethod
+    def convert(cls, value):
+        if isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            value = value.strip()
+            if (value.startswith('[') and value.endswith(']')) or (value.startswith('(') and value.endswith(')')):
+                return list(eval(value))
+            else:
+                raise ValueError(f'Cannot convert {value} to list')
+        else:
+            raise ValueError(f'Cannot convert {value} to list')
