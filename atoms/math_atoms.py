@@ -1,9 +1,8 @@
 '''contains all the atoms related to math calculation'''
-import sympy
-
 from data_struct.atom import Atom
 from data_struct.param import Param
 from data_struct.converter import *
+import sympy
 
 class CalculateFormula(Atom):
     inputs = (Param('Calculation formula', str),)
