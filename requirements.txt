@@ -5,3 +5,4 @@ sqlite_utils
 pycryptodome
 matplotlib
 plotly
+scikit-learn
