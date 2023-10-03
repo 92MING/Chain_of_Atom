@@ -5,3 +5,4 @@ PySide2
 pycryptodome
 matplotlib
 plotly
+scikit-learn

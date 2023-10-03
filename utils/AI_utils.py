@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-'''常用的AI工具。使用前，需先使用"addAPIKey"添加OpenAI密鑰。可添加多個，並在exceed quota等情況時自動切換。'''
-import os, tiktoken
+"""常用的AI工具。使用前，需先使用"addAPIKey"添加OpenAI密鑰。可添加多個，並在exceed quota等情況時自動切換。"""
+import os
+import tiktoken
 import numpy as np
 from openai.embeddings_utils import cosine_similarity as _cosine_similarity
 from openai.error import *
@@ -11,7 +12,7 @@ from typing import Iterable, Union
 from utils.sqlite_utils import Database, NotFoundError
 
 _enc = GetOrAddGlobalValue("_OPENAI_ENCODING", tiktoken.get_encoding('cl100k_base'))
-_apiKeys:set = GetOrAddGlobalValue("_OPENAI_API_KEYS", set())
+_apiKeys: set = GetOrAddGlobalValue("_OPENAI_API_KEYS", set())
 
 class NoAPIKeyError(Exception):
     pass
