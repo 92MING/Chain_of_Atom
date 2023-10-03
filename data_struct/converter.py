@@ -1,5 +1,5 @@
 from utils.global_value_utils import GetOrAddGlobalValue
-import re, sympy
+import re
 from typing import Sequence
 
 _CONVERTER_CLSES = GetOrAddGlobalValue('_CONVERTER_CLSES', dict()) # type : converter

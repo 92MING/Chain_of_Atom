@@ -1,7 +1,7 @@
 openai
 tiktoken
 numpy
-sqlite_utils
+PySide2
 pycryptodome
 matplotlib
 plotly
