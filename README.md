@@ -11,7 +11,7 @@ Different from CoT, ToT, etc., CoA aims to ensure the correctness of the task re
 ```
 Chain-of-Atom
 ├── atoms    # Atom operations
-├── data_structure    # Data structure, e.g. Atom, Param, etc.
+├── data_struct    # Data structure, e.g. Atom, Param, etc.
 ├── data    # Saved Data. e.g. Learnt atom shortcuts, etc.
 ├── cache    # Cache. e.g. embedding cache, etc.
 ├── utils    # Utils
