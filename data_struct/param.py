@@ -1,21 +1,24 @@
 from .converter import Converter
 import numpy as np
 from utils.AI_utils import get_embedding_vector
-from typing import Callable
+from typing import Callable, Union
 
 class Param:
     '''Param is a class that stores info for input/output of an atom.'''
-    def __init__(self, prompt, expected_type:type, converter=None, default=None):
+    def __init__(self, prompt:str, expected_type:type, converter:Union[callable, Converter]=None, default=None,
+                 example_prompt:str=None):
         '''
         :param prompt: The prompt for searching.
         :param expected_type: The expected type of the input/output.
         :param converter: The converter for converting the input/output. If not specified, will try to convert the input/output to the expected type.
         :param default: default value for the input/output when type conversion failed.
+        :param example_prompt: Prompt for guiding the AI to generate values in correct format.
         '''
         self.prompt = prompt
         self.expected_type = expected_type
         self.converter = converter
         self.default = default
+        self.example_prompt = example_prompt
         self._value = None # store the value of the param
         self._prompt_embed : np.array = None # store the embedding of the prompt
 
