@@ -57,3 +57,11 @@ class Param:
             else:
                 self._prompt_embed = get_embedding_vector(self.prompt)
         return self._prompt_embed
+
+    @property
+    def full_prompt(self):
+        '''Return both prompt and example prompt(if exists)'''
+        if self.example_prompt is None:
+            return self.prompt
+        else:
+            return f'{self.prompt} (e.g.:{self.example_prompt})'

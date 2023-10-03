@@ -60,6 +60,9 @@ class Atom(metaclass=AtomMeta):
     def __init__(self):
         raise Exception("Atom is a static class, don't initialize it. You should herit to define your own atom with input/ output params and run method.")
     @classmethod
+    def AtomName(cls):
+        return cls.__qualname__
+    @classmethod
     def id(cls):
         '''Get the unique id of this atom.'''
         return cls._id
