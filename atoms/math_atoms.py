@@ -2,6 +2,7 @@
 
 from data_struct.atom import Atom
 from data_struct.param import Param
+from data_struct.converter import *
 
 class CalculateFormula(Atom):
     inputs = (Param('Calculation formula', str),)
@@ -25,10 +26,19 @@ class VerifyFormulaResult(Atom):
             return False
 
 class Permutations(Atom):
-    inputs = (Param('List of elements', list), )
-    outputs = (Param('List of permutations', list),)
+    inputs = (Param('List of elements for permutation', list), )
+    outputs = (Param('List of permutations with your given elements', list), )
     prompt = 'Get all permutations with a list of elements. e.g. [1,2,3] => [(1,2,3), (1,3,2), (2,1,3), ...]'
     @classmethod
     def run(cls, elements:list):
         from itertools import permutations
         return list(permutations(elements, len(elements)))
+
+class Sort(Atom):
+    inputs = (Param('List of numbers for sorting', list, converter=NumListConverter), Param('Whether to sort in descending order', bool, default=False))
+    outputs = (Param('List of numbers after sorting', list), )
+    prompt = 'Sort a list of numbers. e.g. [3,2,1] => [1,2,3]'
+    @classmethod
+    def run(cls, elements:list, descending:bool=False):
+        return sorted(elements, reverse=descending)
+

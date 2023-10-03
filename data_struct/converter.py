@@ -1,5 +1,6 @@
 from utils.global_value_utils import GetOrAddGlobalValue
 import re
+from typing import Sequence
 
 _CONVERTER_CLSES = GetOrAddGlobalValue('_CONVERTER_CLSES', dict()) # type : converter
 _INITED_CONVERTER_CLSES = GetOrAddGlobalValue('_INITED_CONVERTER_CLSES', dict()) # cls_name : converter
@@ -8,7 +9,8 @@ class ConverterMeta(type):
         cls_name = args[0]
         if cls_name != 'Converter' and cls_name not in _INITED_CONVERTER_CLSES:
             cls = super().__new__(self, *args, **kwargs)
-            _CONVERTER_CLSES[cls.type_name()] = cls
+            if cls.type_name() not in _CONVERTER_CLSES:
+                _CONVERTER_CLSES[cls.type_name()] = cls # only save the first converter of this type
             _INITED_CONVERTER_CLSES[cls_name] = cls
             return cls
         if cls_name == 'Converter':
@@ -60,6 +62,8 @@ class IntConverter(Converter):
     def convert(cls, value):
         if isinstance(value, int):
             return value
+        if isinstance(value, float):
+            return int(value)
         if isinstance(value, str):
             value = value.strip()
             if str.isdigit(value):
@@ -69,11 +73,10 @@ class IntConverter(Converter):
             if match is not None:
                 return int(match.group(1))
             raise ValueError(f'Cannot convert {value} to int')
-        else:
-            try:
-                return int(value)
-            except:
-                raise ValueError(f'Cannot convert {value} to int')
+        try:
+            return int(value)
+        except:
+            raise ValueError(f'Cannot convert {value} to int')
 
 class FloatConverter(Converter):
     @classmethod
@@ -92,11 +95,10 @@ class FloatConverter(Converter):
             if match is not None:
                 return float(match.group(1))
             raise ValueError(f'Cannot convert {value} to float')
-        else:
-            try:
-                return float(value)
-            except:
-                raise ValueError(f'Cannot convert {value} to float')
+        try:
+            return float(value)
+        except:
+            raise ValueError(f'Cannot convert {value} to float')
 
 class ListConverter(Converter):
     @classmethod
@@ -107,10 +109,59 @@ class ListConverter(Converter):
         if isinstance(value, list):
             return value
         if isinstance(value, str):
-            value = value.strip()
-            if (value.startswith('[') and value.endswith(']')) or (value.startswith('(') and value.endswith(')')):
-                return list(eval(value))
-            else:
-                raise ValueError(f'Cannot convert {value} to list')
-        else:
+            # if [..] or (..) is found, use re to extract the sub string
+            if re.match(r'\s*\[.*\]\s*$', value) or re.match(r'\s*\{.*\}\s*$', value) or re.match(r'\s*\((.*)\)\s*$', value):
+                value = re.search(r'\[.*\]|\{.*\}|\((.*)\)', value).group()[1:-1]
+            result = re.split(r'\s*,\s*', value)
+            if len(result) == 1:
+                if result[0] == '':
+                    return []
+                if ' ' in result[0]:
+                    return result[0].split(' ')
+            return result
+        if isinstance(value, Sequence):
+            return list(value)
+        try:
+            return list(value)
+        except:
             raise ValueError(f'Cannot convert {value} to list')
+
+class NumListConverter(Converter):
+    @classmethod
+    def type(cls):
+        return list
+    @classmethod
+    def convert(cls, value):
+        value = ListConverter.convert(value)
+        return [FloatConverter.convert(v) for v in value]
+
+class BoolConverter(Converter):
+    @classmethod
+    def type(cls):
+        return bool
+    @classmethod
+    def convert(cls, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            value = value.strip().lower()
+            if 'true' in value:
+                return True
+            if 'false' in value:
+                return False
+            if str.isdigit(value):
+                return bool(int(value))
+            else:
+                try:
+                    return bool(float(value))
+                except ValueError:
+                    pass
+            raise ValueError(f'Cannot convert {value} to bool')
+        if isinstance(value, int):
+            return bool(value)
+        if isinstance(value, float):
+            return bool(value)
+        try:
+            return bool(value)
+        except:
+            raise ValueError(f'Cannot convert {value} to bool')
