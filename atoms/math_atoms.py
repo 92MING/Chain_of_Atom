@@ -1,6 +1,6 @@
 '''contains all the atoms related to math calculation'''
 import sympy
-
+import numpy as np
 from data_struct.atom import Atom
 from data_struct.param import Param
 from data_struct.converter import *
@@ -70,15 +70,19 @@ class EquationWithOneUnknown(Atom):
         ans = sympy.solve(equation)
         return ans
 
-class SystemOfLinearEquation(Atom):
+class SolveLinearEquations(Atom):
     inputs = (Param('The system of the linear equation', list), )
     outputs = (Param('Calculation result', list), )
-    prompt = '''Solve the system of linear equation. e.g. for three equations with three unknowns 
+    prompt = '''
+    Solve the system of linear equation. 
+    e.g. for three equations with three unknowns 
                 ["8x + 3y− 2z = 9", 
                 "−4x+ 7y+ 5z = 15", 
-                "3x + 4y− 12z= 35"]'''
+                "3x + 4y− 12z= 35"]
+    '''
+
     @classmethod
-    def run(cls,system: str):
+    def run(cls,system: list):
         left_matrix = []
         right_matrix = []
         for line in system:
@@ -90,3 +94,6 @@ class SystemOfLinearEquation(Atom):
         left_matrix = np.array(left_matrix)
         right_matrix = np.array(right_matrix)
         ans = np.linalg.solve(left_matrix, right_matrix)
+        return ans
+
+print(SolveLinearEquations.run(["8x + 3y− 2z = 9", "−4x+ 7y+ 5z = 15", "3x + 4y− 12z= 35"]))
