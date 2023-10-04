@@ -19,29 +19,98 @@ class Thinker:
         return re.findall(r'.*?\[(.*?)\].*?', s)
 
     def _init_think_prompt(self, question: str):
+        # return f"""
+        # Suppose you are solving a problem using 'Chain of Thoughts' method, and now you have come to the last step of the chain(It means after this step, you will get the answer).
+        # For this last step, what method should you use to solve it? Give a brief description of the method or the name of the method.
+        # Try to think of what should have been done before the last step & what you will get after the last step so as to help you think of the last step.
+        # Quote the last step with '[ ]'.
+        #
+        # e.g.
+        # ------------------
+        # Q: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
+        # A: Last step : [Solving system of linear equations]. I should have listed out the equations before solving the last step. After finish the last step, I will get the value of the unknowns.
+        # ------------------
+        # Now, think about the question and answer the last step of the chain of thoughts. Note that you don't need to answer the question.
+        # Q: {question}
+        # """
+
         return f"""
-        Suppose you are solving a problem using 'Chain of Thoughts' method, and now you have come to the last step of the chain(It means after this step, you will get the answer).
-        For this last step, what method should you use to solve it? Give a brief description of the method or the name of the method.
-        Try to think of what should have been done before the last step & what you will get after the last step so as to help you think of the last step.
+        Suppose you are solving a problem using 'Chain of Thoughts' method, and you are now thinking the final outputs of the problem,
+        which means that you are now reaching the solution of the problem.
+        No calculation are required in this task. You are required to identify what type of answers needed to be the outputs of this problem.
         Quote the last step with '[ ]'.
 
         e.g.
         ------------------
         Q: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
-        A: Last step : [Solving system of linear equations]. I should have listed out the equations before solving the last step. After finish the last step, I will get the value of the unknowns.
+        A: Last step : [Solution of system of linear equations]. I should have listed out the equations before solving the last step. After finish the last step, I will get the value of the unknowns. And the solution would be the output.
         ------------------
         Now, think about the question and answer the last step of the chain of thoughts. Note that you don't need to answer the question.
         Q: {question}
         """
     # endregion
 
-    def think(self, question:str):
+    def Information_match(self, problem: str, input: Value):
+        prompt_ = f"""
+        Suppose you are playing a matching game now. 
+        You receive a problem in this game. Under this problems, you can just simply extract some basic information from the problem without any calculation.
+        Alongside you receive a input requirement. You are required to determine whether the basic information you extracted can simply fulfil the 
+        requirement. During the matching for basic information and requirement, no logical deduction can be involved.
+        Answer 1 if you think information could successfully match the requirement, else 0.
+        Quote the answer with '[ ]'.
+        
+        example 1:
+        ------------------
+        Q: 
+        Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
+        Input Requirement: Shows the system of the linear equation solve the problems.
+        
+        A: [0]
+        
+        Reason: 
+        The problem content just does not directly relate to system of the linear equation. 
+        Only after deductions made on problem, system of linear equation can be built 
+        ------------------
+        
+        example 2:
+        Q:
+        Problem: using addition/subtraction/multiplication/division, how can we get 24 from 3,4,5,6?
+        Input Requirement: Shows the list of integer to build 24.
+        
+        A: [1]
+        
+        Reason:
+        The problem has given four numbers already, 3,4,5,6. Therefore, this basic information could be extracted to satisfy the requirement.
+        -----------------
+        
+        Now, think on this matching game.
+        Q: 
+        Problem: {problem}
+        Input Requirement: {input}
+        
+        A:(Your answer)
+        -----------------
+        Note that only number 0,1 should be given in your answer. The Reason in the example just explain how the answer is chosen.
+        """
+
+        ret = get_chat(prompt_,model=self.model,temperature=self.temperature)
+        return self._get_quoted_strs(ret)[0]
+
+
+    def thinking_process_IPO(self, question: str):
         print("start thinking Q:", question)
         ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
-        last_step = self._get_quoted_strs(ret)[0]
-        print("AI thinks the last step is:", last_step)
+        final_output = self._get_quoted_strs(ret)[0]
+        print("AI thinks the final output is:", final_output)
 
-        self.think_for_possible_func(last_step)
+
+    # def think(self, question:str):
+    #     print("start thinking Q:", question)
+    #     ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
+    #     last_step = self._get_quoted_strs(ret)[0]
+    #     print("AI thinks the last step is:", last_step)
+    #
+    #     self.think_for_possible_func(last_step)
 
     def think_for_possible_func(self, purpose:str)->Atom:
         print('thinking for a suitable atom...')

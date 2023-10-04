@@ -17,20 +17,10 @@ class ValueMeta(PromptedObjMeta):
     def update_subcls_node_in_kg(cls, subcls: type):
         raise NotImplementedError()
 
-class Value:
-    '''Param is a class that stores info for input/output of an atom.'''
-    def __init__(self, prompt:str, expected_type:type, converter:Union[callable, Converter]=None, default=None,
-                 example_prompt:str=None):
-        '''
-        :param prompt: The prompt for searching.
-        :param expected_type: The expected type of the input/output.
-        :param converter: The converter for converting the input/output. If not specified, will try to convert the input/output to the expected type.
-        :param default: default value for the input/output when type conversion failed.
-        :param example_prompt: Prompt for guiding the AI to generate values in correct format.
-        '''
-        self.prompt = prompt
-        self.expected_type = expected_type
-        self.converter = converter
+class Value(metaclass=ValueMeta):
+    self.prompt = prompt
+    self.expected_type = expected_type
+    self.converter = converter
         self.default = default
         self.example_prompt = example_prompt
         self._value = None # store the value of the param
