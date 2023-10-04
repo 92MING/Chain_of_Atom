@@ -1,5 +1,6 @@
 import numpy as np
-from .param import Param
+from promptedObj import PromptedObjMeta
+from value import Value
 from typing import Tuple, Union
 from utils.AI_utils import get_embedding_vector
 from utils.global_value_utils import GetOrAddGlobalValue
@@ -19,30 +20,37 @@ def _add_atom(atom_cls:Union['Atom', type]):
 
 # region atom base class
 _ATOM_CLSES = GetOrAddGlobalValue('_ATOM_CLSES', dict()) # cls name : atom cls
-class AtomMeta(type):
-    '''AtomMeta is a metaclass for Atom. It is for doing some initialization work when a Atom subclass is defined.'''
-    def __new__(self, *args, **kwargs):
-        cls_name = args[0]
-        if cls_name != 'Atom' and cls_name not in _ATOM_CLSES:
-            cls = super().__new__(self, *args, **kwargs)
-            if cls.prompt is None:
-                raise Exception(f'Atom subclass "{cls_name}" should have a prompt.')
-            _ATOM_CLSES[cls_name] = cls
-            return cls
-        if cls_name == 'Atom':
-            return super().__new__(self, *args, **kwargs)
-        else:
-            return _ATOM_CLSES[cls_name]
-class Atom(metaclass=AtomMeta):
+class AtomMeta(PromptedObjMeta):
+    '''AtomMeta is a baseclass for Atom. It is for doing some initialization work when a Atom subclass is defined.'''
+    BASE_CLS_NAME = __name__
+    ADD_TO_KG = True
+
+    @classmethod
+    def create_subcls_node_in_kg(cls, subcls: 'Value'):
+        cypher = f"""CREATE (n:{cls.BASE_CLS_NAME} {{name: "{subcls.cls_name()}", prompt: "{subcls.prompt}"}})"""
+    # def __new__(self, *args, **kwargs):
+    #     cls_name = args[0]
+    #     if cls_name != 'Atom' and cls_name not in _ATOM_CLSES:
+    #         cls = super().__new__(self, *args, **kwargs)
+    #         if cls.prompt is None:
+    #             raise Exception(f'Atom subclass "{cls_name}" should have a prompt.')
+    #         _ATOM_CLSES[cls_name] = cls
+    #         return cls
+    #     if cls_name == 'Atom':
+    #         return super().__new__(self, *args, **kwargs)
+    #     else:
+    #         return _ATOM_CLSES[cls_name]
+
+class Atom(AtomMeta):
     '''
     Atom is 1 single action with clear param/ result description. It is a basic unit of a step.
     Override this class to define your own atom.
     Note that all atoms should be static classes, with unique class name.
     '''
 
-    inputs:Tuple[Param, ...] = None
+    inputs:Tuple[Value,...] = None
     '''Override this cls property to specify the input params of the atom.'''
-    outputs:Tuple[Param, ...] = None
+    outputs:Tuple[Value,...] = None
     '''Override this cls property to specify the output params of the atom.'''
     prompt:str = None
     '''Override this to describe the atom function.'''

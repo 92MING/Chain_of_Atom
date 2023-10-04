@@ -2,13 +2,28 @@
 import re
 
 from data_struct.atom import Atom
-from data_struct.param import Param
+from data_struct.value import Value
 from data_struct.converter import *
 from utils.AI_utils import get_chat
 
+'''TextToEquations Value Input Class'''
+class TextDescribeEquations(Value):
+    prompt = "Shows a short passage describing the problems of sets of equation in real life"
+
+    @classmethod
+    def run(cls, text:str):
+        pass
+
+'''TextToEquations Value Output Class'''
+class ListOfEquations(Value):
+    prompt = "Stores Lists of equations to solve the problems"
+    @classmethod
+    def run(cls, formula:list):
+        pass
+
 class TextToEquations(Atom):
-    inputs = (Param('A short text describing the problems of sets of equation in real life', str),)
-    outputs = (Param('Lists of equations from the text', list),)
+    inputs = (TextDescribeEquations,)
+    outputs = (ListOfEquations,)
     prompt = "Convert the text to lists of equations"
     @classmethod
     def run(cls, text: str):

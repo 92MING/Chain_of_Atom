@@ -1,13 +1,29 @@
 # -*- coding: utf-8 -*-
 '''contains all the atoms related to math calculation'''
 import sympy
+
 from data_struct.atom import Atom
-from data_struct.param import Param
+from data_struct.value import Value
 from data_struct.converter import *
+from utils.AI_utils import get_chat
+
+'''CalculateFormula Value Input Class'''
+class CalculationFormula(Value):
+    prompt = "Shows mathematics formula to be calculated"
+    @classmethod
+    def run(cls,formula: str, example_prompt='1+1'):
+        pass
+
+'''CalculateFormula Value Output Class'''
+class CalculationResult(Value):
+    prompt = "Shows calculation Result"
+    @classmethod
+    def run(cls,formula: float):
+        pass
 
 class CalculateFormula(Atom):
-    inputs = (Param('Calculation formula', str, example_prompt='1+1'),)
-    outputs = (Param('Calculation result', float),)
+    inputs = (CalculationFormula,)
+    outputs = (CalculationResult,)
     prompt = 'Calculate a math formula and get the result.'
     @classmethod
     def run(cls, formula:str):
@@ -31,9 +47,23 @@ class CalculateFormula(Atom):
             return result.evalf()
         return result
 
+'''VerifyFormulaResult Value Input Class'''
+class CalculationFormulaVerify(Value):
+    prompt ="Shows calculation formula to be verified"
+    @classmethod
+    def run(cls, formula: str,expected_result:float, example_prompt='1+1'):
+        pass
+
+'''VerifyFormulaResult Value Output Class'''
+class VerifyingAnswer(Value):
+    prompt = "Shows whether the expected result is equal to the formula"
+    @classmethod
+    def run(cls,answer: bool):
+        pass
+
 class VerifyFormulaResult(Atom):
-    inputs = (Param('Calculation formula', str, example_prompt='1+1'), Param('Expected result', float))
-    outputs = (Param('Whether the expected result is equal to the formula', bool),)
+    inputs = (CalculationFormulaVerify,)
+    outputs = (VerifyingAnswer,)
     prompt = 'Verify if a formula is valid with a given result'
     @classmethod
     def run(cls, formula:str, expected_result:float):
@@ -43,27 +73,60 @@ class VerifyFormulaResult(Atom):
         except:
             return False
 
+'''Permutations Value Input Class / Permutations Value Output Class (thinking)'''
+class PermutationsNumListStorage(Value):
+    prompt = 'Shows a list of number'
+    @classmethod
+    def run(cls, numlist:list, example_prompt='[a, b, c]'):
+        pass
+
 class Permutations(Atom):
-    inputs = (Param('List of elements for permutation', list, example_prompt='[a, b, c]'), )
-    outputs = (Param('List of permutations with your given elements', list), )
+    inputs = (PermutationsNumListStorage,)
+    outputs = (PermutationsNumListStorage,)
     prompt = 'Get all permutations with a list of elements. '
     @classmethod
     def run(cls, elements:list):
         from itertools import permutations
         return list(permutations(elements, len(elements)))
 
+'''Sort Value Input Class'''
+class SortOrder (Value):
+    prompt = 'Shows order of sort'
+    @classmethod
+    def run(cls, order:bool, default=False):
+        pass
+
+'''Sort Value Input Class'''
+class SortNumListStorage(Value):
+    prompt = 'Shows a list of number for sorting'
+    @classmethod
+    def run(cls, numlist:list, example_prompt='[a, b, c]'):
+        pass
+
+'''Sort Value Output Class'''
+class SortedNumListStorage(Value):
+    prompt = 'Shows a sorted list of number'
+    @classmethod
+    def run(cls, numlist:list,  example_prompt='[a, b, c]'):
+        pass
+
 class Sort(Atom):
-    inputs = (Param('List of numbers for sorting', list, converter=NumListConverter, example_prompt='[3,2,1]'),
-              Param('Whether to sort in descending order', bool, default=False))
-    outputs = (Param('Sorted list of numbers', list), )
+    inputs = (SortNumListStorage,SortOrder,)
+    outputs = (SortedNumListStorage,)
     prompt = 'Sort a list of numbers. e.g. [3,2,1] => [1,2,3]. You can also sort in descending order.'
     @classmethod
     def run(cls, elements:list, descending:bool=False):
         return sorted(elements, reverse=descending)
 
+class EquationStorage(Value):
+    prompt = 'Shows the equation to solve'
+    @classmethod
+    def run(cls, formula:str , example_prompt='x^2 + 2x + 1 = 0'):
+        pass
+
 class SolveOneUnknownEquation(Atom):
-    inputs = (Param('The equation to solve', str, example_prompt='x^2 + 2x + 1 = 0'), )
-    outputs = (Param('Calculation result', float), )
+    inputs = (EquationStorage,)
+    outputs = (CalculationResult,)
     prompt = 'Solve a single unknown equation.'
     @classmethod
     def run(cls, formula: str):
@@ -72,9 +135,23 @@ class SolveOneUnknownEquation(Atom):
         ans = sympy.solve(equation)
         return ans[0]
 
+'''SolveLinearEquations Value Input Class'''
+class SystemOfEquationsAnswer(Value):
+    prompt = "Shows the system of the linear equation"
+    @classmethod
+    def run(cls,formula: list, example_prompt='["8x + 3y− 2z = 9", "−4x+ 7y+ 5z = 15", "3x + 4y− 12z= 35"]'):
+        pass
+
+'''SolveLinearEquations Value Output Class'''
+class CalculationResultForLinearEquation(Value):
+    prompt = "Shows the answer mapping from linear equation"
+    @classmethod
+    def run(cls, answer: dict, example_prompt='{"x": 1, "y": 2, "z": 3}'):
+        pass
+
 class SolveLinearEquations(Atom):
-    inputs = (Param('The system of the linear equation', list, example_prompt='["8x + 3y− 2z = 9", "−4x+ 7y+ 5z = 15", "3x + 4y− 12z= 35"]'), )
-    outputs = (Param('Calculation result', dict, example_prompt='{"x": 1, "y": 2, "z": 3}'), )
+    inputs = SystemOfEquationsAnswer
+    outputs = CalculationResultForLinearEquation
     prompt = '''Solve a system of linear equation.'''
     @classmethod
     def run(cls, system: list):
