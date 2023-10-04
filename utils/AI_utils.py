@@ -71,21 +71,29 @@ def count_tokens(text:str)->int:
 
 from .path_utils import EMBEDDING_CACHE_DB_PATH
 _embedCacheDB = Database(EMBEDDING_CACHE_DB_PATH)
-_embedCacheTable = _embedCacheDB.create_table('embedding_cache', pk='hash',
-                                              columns={'hash':str, 'embedding':bytes},
+_embedCacheTable = _embedCacheDB.create_table('embedding_cache', pk=['hash', 'model'],
+                                              columns={'hash':str, 'embedding':bytes, 'model':str},
                                               not_null=('hash', 'embedding'),
                                               if_not_exists=True)
+class EmbedModel(CrossModuleEnum):
+    OPENAI = ('openai', 1536) # name for sqlite, vector dimension
+    @property
+    def dimension(self)->int:
+        return self.value[1]
 @errorHandler
-def get_embedding_vector(text:str)->np.ndarray:
+def get_embedding_vector(text:str, model=EmbedModel.OPENAI)->np.ndarray:
     '''Get embedding vector from text (through OpenAI API)'''
     hash = getSHA256Hash_fromString(text)
+    model_name = model.value
     try: # try to get from cache
-        result = _embedCacheTable.get(hash)
+        result = _embedCacheTable.get([hash, model_name])
         return np.frombuffer(result['embedding'], dtype=np.float32)
     except NotFoundError:
-        v = openai.Embedding.create(input=[text], model='text-embedding-ada-002')['data'][0]['embedding']
-        embed = np.array(v, dtype=np.float32)
-        _embedCacheTable.insert({'hash':hash, 'embedding':embed.tobytes()})
+        if model == EmbedModel.OPENAI:
+            v = openai.Embedding.create(input=[text], model='text-embedding-ada-002')['data'][0]['embedding']
+            embed = np.array(v, dtype=np.float32)
+            _embedCacheTable.insert({'hash':hash, 'embedding':embed.tobytes()})
+        # TODO: add more models
         return embed
 
 class ChatModel(CrossModuleEnum):
@@ -154,4 +162,4 @@ def cosine_similarity(v1, v2):
 
 
 
-__all__ = ['addAPIKey', 'get_tokens', 'count_tokens', 'get_embedding_vector', 'get_chat', 'normalize', 'cosine_similarity', 'ChatModel']
+__all__ = ['addAPIKey', 'get_tokens', 'count_tokens', 'get_embedding_vector', 'get_chat', 'normalize', 'cosine_similarity', 'ChatModel', 'EmbedModel']

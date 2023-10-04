@@ -1,40 +1,33 @@
 import numpy as np
 from .param import Param
-from typing import Tuple
+from typing import Tuple, Union
 from utils.AI_utils import get_embedding_vector
 from utils.global_value_utils import GetOrAddGlobalValue
-from utils.path_utils import ATOM_DATA_PATH
-from utils.sqlite_utils import Database, NotFoundError
+from utils.neo4j_utils import neo4j_session
 
-# region database
-_ATOM_DATA_DB = Database(ATOM_DATA_PATH)
-_PREDEFINED_ATOM_CLSES_TABLE = _ATOM_DATA_DB.create_table(name='predefined_atom_clses',
-                                                         columns={'id':int, 'cls_name':str, 'prompt':str,},
-                                                         pk='id',
-                                                         autoincrement='id',
-                                                         if_not_exists=True)
-'''All predefined atom classes(predefined atom means atoms written in .py). Mainly use for saving their id.'''
-_PREDEFINED_ATOM_CLSES_TABLE.create_index(columns='cls_name', if_not_exists=True)
-
+# region graph db
+def _atom_exist_in_db(atom_name:str):
+    return neo4j_session().run(f'match (n:Atom) where n.name="{atom_name}" return n').single() is not None
+def _add_atom(atom_cls:Union['Atom', type]):
+    '''
+    Add an atom to graph db.
+    :param atom_cls: this param should be a subclass of Atom. It is labeled as 'Atom' just for type hint.
+    '''
+    if not _atom_exist_in_db(atom_cls.atom_name()):
+        neo4j_session().run(f'create (n:Atom {{name:"{atom_cls.atom_name()}"}})')
 # endregion
 
 # region atom base class
 _ATOM_CLSES = GetOrAddGlobalValue('_ATOM_CLSES', dict()) # cls name : atom cls
 class AtomMeta(type):
-    '''AtomMeta is a metaclass for Atom. It will save all atom prompts for searching process.'''
+    '''AtomMeta is a metaclass for Atom. It is for doing some initialization work when a Atom subclass is defined.'''
     def __new__(self, *args, **kwargs):
         cls_name = args[0]
         if cls_name != 'Atom' and cls_name not in _ATOM_CLSES:
             cls = super().__new__(self, *args, **kwargs)
             if cls.prompt is None:
-                raise Exception(f'Atom {cls_name} should have a prompt.')
+                raise Exception(f'Atom subclass "{cls_name}" should have a prompt.')
             _ATOM_CLSES[cls_name] = cls
-            if _PREDEFINED_ATOM_CLSES_TABLE.find_first(f'cls_name="{cls_name}"') is None:
-                _PREDEFINED_ATOM_CLSES_TABLE.insert({'cls_name':cls_name, 'prompt':cls.prompt})
-                cls._id = _PREDEFINED_ATOM_CLSES_TABLE.find_first(f'cls_name="{cls_name}"')['id']
-            else:
-                cls._id = _PREDEFINED_ATOM_CLSES_TABLE.find_first(f'cls_name="{cls_name}"')['id']
-                _PREDEFINED_ATOM_CLSES_TABLE.update({'id':cls._id, 'cls_name':cls_name, 'prompt':cls.prompt})
             return cls
         if cls_name == 'Atom':
             return super().__new__(self, *args, **kwargs)
@@ -60,7 +53,7 @@ class Atom(metaclass=AtomMeta):
     def __init__(self):
         raise Exception("Atom is a static class, don't initialize it. You should herit to define your own atom with input/ output params and run method.")
     @classmethod
-    def AtomName(cls):
+    def atom_name(cls):
         return cls.__qualname__
     @classmethod
     def id(cls):

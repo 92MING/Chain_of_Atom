@@ -1,9 +1,23 @@
-from .converter import Converter
+from data_struct.converter import Converter
+from data_struct.promptedObj import *
 import numpy as np
 from utils.AI_utils import get_embedding_vector
 from typing import Callable, Union
+from utils.neo4j_utils import neo4j_session
 
-class Param:
+class ValueMeta(PromptedObjMeta):
+    BASE_CLS_NAME = 'Value'
+    ADD_TO_KG = True
+
+    @classmethod
+    def create_subcls_node_in_kg(cls, subcls: 'Value'):
+        cypher = f"""CREATE (n:{cls.BASE_CLS_NAME} {{name: "{subcls.cls_name()}", prompt: "{subcls.prompt}"}})"""
+
+    @classmethod
+    def update_subcls_node_in_kg(cls, subcls: type):
+        raise NotImplementedError()
+
+class Value:
     '''Param is a class that stores info for input/output of an atom.'''
     def __init__(self, prompt:str, expected_type:type, converter:Union[callable, Converter]=None, default=None,
                  example_prompt:str=None):

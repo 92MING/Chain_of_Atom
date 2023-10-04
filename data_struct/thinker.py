@@ -46,7 +46,7 @@ class Thinker:
     def think_for_possible_func(self, purpose:str)->Atom:
         print('thinking for a suitable atom...')
         possible_atoms = k_similar_atoms(purpose)
-        print('possible atoms:', [atom.AtomName() for atom in possible_atoms])
+        print('possible atoms:', [atom.atom_name() for atom in possible_atoms])
         all_func_prompts = ""
         for j, atom in enumerate(possible_atoms):
             atom_input_prompts = '\n'.join([f'Input {i + 1}: {param.full_prompt}' for i, param in enumerate(atom.inputs)])
@@ -110,7 +110,7 @@ class Thinker:
             return None
         else:
             atom = possible_atoms[IntConverter.convert(ans) - 1]
-            print(f"AI thinks the function is: {atom.AtomName()}. "
+            print(f"AI thinks the function is: {atom.atom_name()}. "
                   f"Because: {reason}")
             return atom
 
