@@ -1,0 +1,1 @@
+'''Fact atoms are atoms that are used to retrieve facts from network/db/...'''

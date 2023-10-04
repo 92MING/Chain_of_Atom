@@ -1933,6 +1933,8 @@ class Table(Queryable):
                 self.name.replace(" ", "_"), "_".join(columns)
             )
         columns_sql = []
+        if isinstance(columns, str):
+            columns = [columns]
         for column in columns:
             if isinstance(column, DescIndex):
                 fmt = "[{}] desc"

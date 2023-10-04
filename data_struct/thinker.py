@@ -3,51 +3,9 @@ Thinker is the main class for the whole running. Create a new instance of Thinke
 '''
 import re
 
-from utils.AI_utils import ChatModel, get_chat, get_embedding_vector
+from utils.AI_utils import ChatModel, get_chat
 from atoms import *
 from data_struct.atom import *
-
-INIT_THINK_PROMPT = """
-    Suppose you are solving a problem using 'Chain of Thoughts' method, and now you have come to the last step of the chain. 
-    For this last step, what method should you use to solve it? Give a brief description of the method or the name of the method.
-    Try to think of what should have been done before the last step to make sure the last step is really the last step.
-    Quote the last step with '[ ]'.
-    
-    e.g.
-    ------------------
-    Q: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
-    A: Last step : [Solving algebraic equations]. I should have listed out the equations before solving the last step.
-    ------------------
-"""
-
-STEP_BEFORE_PROMPT = """
-    Suppose you are solving a problem using 'Chain of Thoughts' method, and now you have think reversely.
-    You currently know the problem overflew and last few steps, you have to try to think on one previous step on top of those prvoided steps.
-    Try to think to ensure the this previous step could combine with the later on steps.
-    Quote the previous step with '[]'
-    
-    e.g.
-    ------------------
-    Q:
-    Problem_overview: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
-    Final_step: Solving algebraic equations
-    A: 
-    Previous_step: [Building up lists of equations for solving from the text]. I should have read through the text to set a system of linear equation with varaiable.
-    ------------------
-"""
-
-def _get_init_think_prompt(question:str):
-    return f"""
-    {INIT_THINK_PROMPT}
-    Now, think about the question and answer the last step of the chain of thoughts. Note that you don't need to answer the question.
-    Q: {question}
-    """
-
-def _get_step_before_prompt(question: str):
-    return f"""
-    {STEP_BEFORE_PROMPT}
-    Now think about the question and answer the previous step of the chain of thoughts. Note that you don't need to answer the question.
-    """
 
 class Thinker:
 
@@ -55,26 +13,44 @@ class Thinker:
         self.model = model
         self.temperature = temperature
 
+    # region private methods
+    def _get_quoted_strs(self, s:str):
+        '''get the strings quoted by []. Otherwise return None'''
+        return re.findall(r'.*?\[(.*?)\].*?', s)
+
+    def _init_think_prompt(self, question: str):
+        return f"""
+        Suppose you are solving a problem using 'Chain of Thoughts' method, and now you have come to the last step of the chain(It means after this step, you will get the answer).
+        For this last step, what method should you use to solve it? Give a brief description of the method or the name of the method.
+        Try to think of what should have been done before the last step & what you will get after the last step so as to help you think of the last step.
+        Quote the last step with '[ ]'.
+
+        e.g.
+        ------------------
+        Q: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
+        A: Last step : [Solving system of linear equations]. I should have listed out the equations before solving the last step. After finish the last step, I will get the value of the unknowns.
+        ------------------
+        Now, think about the question and answer the last step of the chain of thoughts. Note that you don't need to answer the question.
+        Q: {question}
+        """
+    # endregion
+
     def think(self, question:str):
         print("start thinking Q:", question)
-        current = f'Problem_overview: {question}'
-        ret = get_chat(_get_init_think_prompt(question), model=self.model, temperature=self.temperature)
-        last_step = re.match(r'.*\[(.*)\].*', ret).group(1)
+        ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
+        last_step = self._get_quoted_strs(ret)[0]
         print("AI thinks the last step is:", last_step)
-        current += f'Final_step: {last_step}'
-        self.ask_for_possible_funcs(last_step)
 
-        ret = get_chat(_get_step_before_prompt(question), model=self.model, temperature=self.temperature)
-        previous_step = re.match(r'.*\[(.*)\].*', ret).group(1)
-        print("AI thinks the previous step is:", previous_step)
-        self.ask_for_possible_funcs(previous_step)
+        self.think_for_possible_func(last_step)
 
-    def ask_for_possible_funcs(self, purpose:str):
+    def think_for_possible_func(self, purpose:str)->Atom:
+        print('thinking for a suitable atom...')
         possible_atoms = k_similar_atoms(purpose)
+        print('possible atoms:', [atom.atom_name() for atom in possible_atoms])
         all_func_prompts = ""
         for j, atom in enumerate(possible_atoms):
-            atom_input_prompts = '\n'.join([f'Input {i + 1}: {param.prompt}' for i, param in enumerate(atom.inputs)])
-            atom_output_prompts = '\n'.join([f'Output {i + 1}: {param.prompt}' for i, param in enumerate(atom.outputs)])
+            atom_input_prompts = '\n'.join([f'Input {i + 1}: {param.full_prompt}' for i, param in enumerate(atom.inputs)])
+            atom_output_prompts = '\n'.join([f'Output {i + 1}: {param.full_prompt}' for i, param in enumerate(atom.outputs)])
             atom_prompt = atom.prompt
             all_func_prompts += f"""
                     Function {j + 1}:
@@ -83,49 +59,60 @@ class Thinker:
                         {atom_output_prompts}
                     """
         prompt = f"""
-        Now you are given some functions, which one/which of them do you think is/are the most possible functions for reaching a given purpose?
-        Answer the index of the function(s) and separate them with comma (if multiple).
+        Now you are given some functions, which ONE do you think is able for reaching a given purpose's answer DIRECTLY?
+        Consider more about the outputs of the functions whether could give you the answer directly.
+        If none of them is possible, answer 'no', otherwise answer the function's index. Quote your answer & reason with two '[]'s. 
         
-        e.g.
+        example 1:
         ------------------
         Function 1:
-            Usage: Solving algebraic equations
-            Input 1: A set of algebraic equations
-            Output 1: The solution of the equation set
+            Usage: Solving system of linear equations
+            Input 1: A system of linear equations (e.g. [x + y = 1, x - y = 2])
+            Output 1: The solution of the linear equation set (e.g. {{x: 1, y: 0}})
         Function 2:
-            Usage: Gives out an algebraic equation to represent a given text
-            Input 1: A text
-            Input 2: A dictionary of variables, e.g. {{'x': 'apple', 'y': 'banana'}}
-            Output 1: An algebraic equation
+            Usage: Gives out an algebraic equation to represent your given text.
+            Input 1: A text (e.g. 'A pen is 10 more expensive than a ball.')
+            Input 2: A dictionary of variables (e.g. {{'x': 'pen', 'y': 'ball'}})
+            Output 1: An algebraic equation (e.g. 'x = y + 10')
+        Q: Purpose: Find a solution for {{"x-y=1", "x+y=2"}}
+        A: [1]. [Because the output of function 1 is the solution of the linear equation set, which is the answer of the question.]
+        ------------------
         
-        Q: Purpose: Find a solution of the equation set
-        A: 1
+        example 2:
+        ------------------
+        Function 1:
+            Usage: Solving system of linear equations
+            Input 1: A system of linear equations (e.g. [x + y = 1, x - y = 2])
+            Output 1: The solution of the linear equation set (e.g. {{x: 1, y: 0}})
+        Function 2:
+            Usage: Gives out an algebraic equation to represent your given text.
+            Input 1: A text (e.g. 'A pen is 10 more expensive than a ball.')
+            Input 2: A dictionary of variables (e.g. {{'pen': 'x', 'ball': 'y'}})
+            Output 1: An algebraic equation (e.g. 'x = y + 10')
+        Q: Purpose: A pen is 10 more expensive than a ball, and the sum of the price of a pen and a ball is 11. What is the price of the ball?
+        A: [no]. [No function could be used directly.]
         ------------------
         
         Now, you are given the following funcs and purpose:
         ------------------
         {all_func_prompts}
         Purpose: {purpose}
-        A: (your answer)
         ------------------
         Note that you just need to give out the index of the function(s) and separate them with comma (if multiple).
         """
-        ret = get_chat(prompt, model=self.model, temperature=self.temperature).strip()
-        if ':' in ret:
-            ret = re.split(r'\s*:\s*', ret)[1].strip()
-        if ',' in ret:
-            ret = re.split(r'\s*,\s*', ret)
+        ret = self._get_quoted_strs(get_chat(prompt, model=self.model, temperature=self.temperature).strip())
+        if len(ret)>1:
+            ans, reason = ret[:2]
         else:
-            ret = [ret]
-        ret = [int(i) - 1 for i in ret]
-        print("AI thinks the possible functions are:", [possible_atoms[i].prompt for i in ret])
-
-    def run_for_possible_function(self, purpose: Atom):
-
-        pass
-
-    def back_track(self):
-        pass
+            ans, reason = ret[0], 'No reason.'
+        if 'no' in ans.lower():
+            print("AI thinks no function could be used directly.")
+            return None
+        else:
+            atom = possible_atoms[IntConverter.convert(ans) - 1]
+            print(f"AI thinks the function is: {atom.atom_name()}. "
+                  f"Because: {reason}")
+            return atom
 
 
 

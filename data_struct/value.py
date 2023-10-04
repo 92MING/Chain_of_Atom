@@ -1,21 +1,38 @@
-from .converter import Converter
+from data_struct.converter import Converter
+from data_struct.promptedObj import *
 import numpy as np
 from utils.AI_utils import get_embedding_vector
-from typing import Callable
+from typing import Callable, Union
+from utils.neo4j_utils import neo4j_session
 
-class Param:
+class ValueMeta(PromptedObjMeta):
+    BASE_CLS_NAME = 'Value'
+    ADD_TO_KG = True
+
+    @classmethod
+    def create_subcls_node_in_kg(cls, subcls: 'Value'):
+        cypher = f"""CREATE (n:{cls.BASE_CLS_NAME} {{name: "{subcls.cls_name()}", prompt: "{subcls.prompt}"}})"""
+
+    @classmethod
+    def update_subcls_node_in_kg(cls, subcls: type):
+        raise NotImplementedError()
+
+class Value:
     '''Param is a class that stores info for input/output of an atom.'''
-    def __init__(self, prompt, expected_type:type, converter=None, default=None):
+    def __init__(self, prompt:str, expected_type:type, converter:Union[callable, Converter]=None, default=None,
+                 example_prompt:str=None):
         '''
         :param prompt: The prompt for searching.
         :param expected_type: The expected type of the input/output.
         :param converter: The converter for converting the input/output. If not specified, will try to convert the input/output to the expected type.
         :param default: default value for the input/output when type conversion failed.
+        :param example_prompt: Prompt for guiding the AI to generate values in correct format.
         '''
         self.prompt = prompt
         self.expected_type = expected_type
         self.converter = converter
         self.default = default
+        self.example_prompt = example_prompt
         self._value = None # store the value of the param
         self._prompt_embed : np.array = None # store the embedding of the prompt
 
@@ -54,3 +71,11 @@ class Param:
             else:
                 self._prompt_embed = get_embedding_vector(self.prompt)
         return self._prompt_embed
+
+    @property
+    def full_prompt(self):
+        '''Return both prompt and example prompt(if exists)'''
+        if self.example_prompt is None:
+            return self.prompt
+        else:
+            return f'{self.prompt} (e.g.:{self.example_prompt})'

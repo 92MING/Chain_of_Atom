@@ -2,6 +2,7 @@ from utils.global_value_utils import GetOrAddGlobalValue
 import re
 from typing import Sequence
 
+# region Converter base class
 _CONVERTER_CLSES = GetOrAddGlobalValue('_CONVERTER_CLSES', dict()) # type : converter
 _INITED_CONVERTER_CLSES = GetOrAddGlobalValue('_INITED_CONVERTER_CLSES', dict()) # cls_name : converter
 class ConverterMeta(type):
@@ -53,7 +54,9 @@ class Converter(metaclass=ConverterMeta):
     def convert(cls, value):
         '''override this method to specify the convert method. Note that input value can be any type.'''
         raise NotImplementedError
+# endregion
 
+# region number converters
 class IntConverter(Converter):
     @classmethod
     def type(cls):
@@ -77,7 +80,6 @@ class IntConverter(Converter):
             return int(value)
         except:
             raise ValueError(f'Cannot convert {value} to int')
-
 class FloatConverter(Converter):
     @classmethod
     def type(cls):
@@ -99,7 +101,9 @@ class FloatConverter(Converter):
             return float(value)
         except:
             raise ValueError(f'Cannot convert {value} to float')
+# endregion
 
+# region sequence converters
 class ListConverter(Converter):
     @classmethod
     def type(cls):
@@ -125,7 +129,6 @@ class ListConverter(Converter):
             return list(value)
         except:
             raise ValueError(f'Cannot convert {value} to list')
-
 class NumListConverter(Converter):
     @classmethod
     def type(cls):
@@ -134,6 +137,15 @@ class NumListConverter(Converter):
     def convert(cls, value):
         value = ListConverter.convert(value)
         return [FloatConverter.convert(v) for v in value]
+class IntListConverter(Converter):
+    @classmethod
+    def type(cls):
+        return list
+    @classmethod
+    def convert(cls, value):
+        value = ListConverter.convert(value)
+        return [IntConverter.convert(v) for v in value]
+# endregion
 
 class BoolConverter(Converter):
     @classmethod

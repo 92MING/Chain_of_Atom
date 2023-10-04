@@ -1,16 +1,14 @@
+# -*- coding: utf-8 -*-
 '''contains all the atoms related to math calculation'''
 import sympy
-import numpy as np
-import re
 from data_struct.atom import Atom
 from data_struct.param import Param
 from data_struct.converter import *
-from utils.AI_utils import get_chat
 
 class CalculateFormula(Atom):
-    inputs = (Param('Calculation formula', str),)
+    inputs = (Param('Calculation formula', str, example_prompt='1+1'),)
     outputs = (Param('Calculation result', float),)
-    prompt = 'Calculate a formula, e.g. 1+2*3, and get the result.'
+    prompt = 'Calculate a math formula and get the result.'
     @classmethod
     def run(cls, formula:str):
         _replace_dict = {
@@ -34,9 +32,9 @@ class CalculateFormula(Atom):
         return result
 
 class VerifyFormulaResult(Atom):
-    inputs = (Param('Calculation formula', str), Param('expected result', float))
+    inputs = (Param('Calculation formula', str, example_prompt='1+1'), Param('Expected result', float))
     outputs = (Param('Whether the expected result is equal to the formula', bool),)
-    prompt = 'Verify if a formula is valid, e.g. 1+2*3.'
+    prompt = 'Verify if a formula is valid with a given result'
     @classmethod
     def run(cls, formula:str, expected_result:float):
         try:
@@ -46,62 +44,47 @@ class VerifyFormulaResult(Atom):
             return False
 
 class Permutations(Atom):
-    inputs = (Param('List of elements for permutation', list), )
+    inputs = (Param('List of elements for permutation', list, example_prompt='[a, b, c]'), )
     outputs = (Param('List of permutations with your given elements', list), )
-    prompt = 'Get all permutations with a list of elements. e.g. [1,2,3] => [(1,2,3), (1,3,2), (2,1,3), ...]'
+    prompt = 'Get all permutations with a list of elements. '
     @classmethod
     def run(cls, elements:list):
         from itertools import permutations
         return list(permutations(elements, len(elements)))
 
 class Sort(Atom):
-    inputs = (Param('List of numbers for sorting', list, converter=NumListConverter), Param('Whether to sort in descending order', bool, default=False))
+    inputs = (Param('List of numbers for sorting', list, converter=NumListConverter, example_prompt='[3,2,1]'),
+              Param('Whether to sort in descending order', bool, default=False))
     outputs = (Param('Sorted list of numbers', list), )
     prompt = 'Sort a list of numbers. e.g. [3,2,1] => [1,2,3]. You can also sort in descending order.'
     @classmethod
     def run(cls, elements:list, descending:bool=False):
         return sorted(elements, reverse=descending)
 
-class EquationWithOneUnknown(Atom):
-    inputs = (Param('The equation to solve', str), )
-    outputs = (Param('Calculation result', list), )
-    prompt = 'Solve a single unknown equation. e.g. x^2+2x+1=0 or x+3=0'
+class SolveOneUnknownEquation(Atom):
+    inputs = (Param('The equation to solve', str, example_prompt='x^2 + 2x + 1 = 0'), )
+    outputs = (Param('Calculation result', float), )
+    prompt = 'Solve a single unknown equation.'
     @classmethod
-    def run(cls, formula:str):
-        equation = sympy.sympify("Eq(" + formula.replace("=", ",") + ")")
+    def run(cls, formula: str):
+        equation = sympy.parse_expr(formula, transformations=sympy.parsing.sympy_parser.T[:11])
+        equation = sympy.sympify(equation)
         ans = sympy.solve(equation)
-        return ans
+        return ans[0]
 
-class SystemOfLinearEquation(Atom):
-    inputs = (Param('List of linear equation to solve', list), )
-    outputs = (Param('Calculation result', list), )
-    prompt = '''Solve the system of linear equation. e.g. for three equations with three unknowns 
-                ["8x + 3y− 2z = 9", 
-                "−4x + 7y+ 5z = 15", 
-                "3x  + 4y− 12z= 35"]'''
+class SolveLinearEquations(Atom):
+    inputs = (Param('The system of the linear equation', list, example_prompt='["8x + 3y− 2z = 9", "−4x+ 7y+ 5z = 15", "3x + 4y− 12z= 35"]'), )
+    outputs = (Param('Calculation result', dict, example_prompt='{"x": 1, "y": 2, "z": 3}'), )
+    prompt = '''Solve a system of linear equation.'''
     @classmethod
-    def run(cls,system:str):
-        left_matrix = []
-        right_matrix = []
-        for line in system:
-            left, right = line.split('=')
-            left = re.findall(r'[\d\.\-\+]+', left)
-            left = [float(x) for x in left]
-            left_matrix.append(left)
-            right_matrix.append(float(right))
-        left_matrix = np.array(left_matrix)
-        right_matrix = np.array(right_matrix)
-        ans = np.linalg.solve(left_matrix, right_matrix)
+    def run(cls, system: list):
+        # To prevent some chr problems when parsing the equation
+        _replace = {
+            chr(0x2212): '-',
+        }
+        for key, value in _replace.items():
+            system = [equation.replace(key, value) for equation in system]
+        system = [sympy.parse_expr(equation, transformations=sympy.parsing.sympy_parser.T[:11]) for equation in system]
+        system = [sympy.sympify(equation) for equation in system]
+        ans = sympy.solve(system)
         return ans
-
-class Combination(Atom):
-    inputs = (Param('Number A', int), Param('Number B', int), Param('Target', int))
-    outputs = (Param('Probability for the list of the number to reach the target. e.g. sure/likely/impossible', str),)
-    prompt = 'Using addition/subtraction/multiplication/division to generate possible formula to reach target'
-    @classmethod
-    def run(cls, numlist: list):
-        prompt_ = cls.prompt + ''
-        get_chat()
-
-
-
