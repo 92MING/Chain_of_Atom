@@ -81,3 +81,6 @@ class PromptedObj:
         return cls.__subclasses__()
 
 __all__ = ['PromptedObjMeta', 'PromptedObj']
+
+class A:
+    pass
