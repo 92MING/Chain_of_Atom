@@ -1,9 +1,11 @@
 '''contains all the atoms related to math calculation'''
 import sympy
-
+import numpy as np
+import re
 from data_struct.atom import Atom
 from data_struct.param import Param
 from data_struct.converter import *
+from utils.AI_utils import get_chat
 
 class CalculateFormula(Atom):
     inputs = (Param('Calculation formula', str),)
@@ -61,32 +63,45 @@ class Sort(Atom):
         return sorted(elements, reverse=descending)
 
 class EquationWithOneUnknown(Atom):
-    inputs = (Param('The equation', str), )
+    inputs = (Param('The equation to solve', str), )
     outputs = (Param('Calculation result', list), )
     prompt = 'Solve a single unknown equation. e.g. x^2+2x+1=0 or x+3=0'
     @classmethod
-    def run(cls, formula: str):
+    def run(cls, formula:str):
         equation = sympy.sympify("Eq(" + formula.replace("=", ",") + ")")
         ans = sympy.solve(equation)
         return ans
 
 class SystemOfLinearEquation(Atom):
-    inputs = (Param('The system of the linear equation', list), )
+    inputs = (Param('List of linear equation to solve', list), )
     outputs = (Param('Calculation result', list), )
     prompt = '''Solve the system of linear equation. e.g. for three equations with three unknowns 
                 ["8x + 3y− 2z = 9", 
-                "−4x+ 7y+ 5z = 15", 
-                "3x + 4y− 12z= 35"]'''
+                "−4x + 7y+ 5z = 15", 
+                "3x  + 4y− 12z= 35"]'''
     @classmethod
-    def run(cls,system: str):
+    def run(cls,system:str):
         left_matrix = []
         right_matrix = []
         for line in system:
             left, right = line.split('=')
             left = re.findall(r'[\d\.\-\+]+', left)
-            left = [int(x) for x in left]
+            left = [float(x) for x in left]
             left_matrix.append(left)
-            right_matrix.append(int(right))
+            right_matrix.append(float(right))
         left_matrix = np.array(left_matrix)
         right_matrix = np.array(right_matrix)
         ans = np.linalg.solve(left_matrix, right_matrix)
+        return ans
+
+class Combination(Atom):
+    inputs = (Param('Number A', int), Param('Number B', int), Param('Target', int))
+    outputs = (Param('Probability for the list of the number to reach the target. e.g. sure/likely/impossible', str),)
+    prompt = 'Using addition/subtraction/multiplication/division to generate possible formula to reach target'
+    @classmethod
+    def run(cls, numlist: list):
+        prompt_ = cls.prompt + ''
+        get_chat()
+
+
+

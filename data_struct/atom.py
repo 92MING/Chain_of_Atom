@@ -112,6 +112,7 @@ def k_similar_atoms(prompt:str, k=5):
     '''Get k similar atoms with the input prompt.'''
     # TODO: use KNN to get k similar atoms
     prompt_embed = get_embedding_vector(prompt)
-    return sorted(_ATOM_CLSES.values(), key=lambda atom: np.dot(atom.prompt_embed(), prompt_embed))[:k]
+    # print(sorted(_ATOM_CLSES.values(), key=lambda atom: np.dot(atom.prompt_embed(), prompt_embed)))
+    return sorted(_ATOM_CLSES.values(), key=lambda atom: np.arccos(np.dot(atom.prompt_embed(), prompt_embed)))[:k]
 
 # endregion
