@@ -1,3 +1,4 @@
+import os
 import time
 from neo4j import GraphDatabase, Driver, Session
 from utils.global_value_utils import GetOrAddGlobalValue
@@ -108,7 +109,7 @@ class Neo4jSession(Session):
         :param propertyKey: the key property of the nodes to be indexed
         :param vector_dimension: the dimension of the vector
         :param similarity_function: the similarity function of the vector [euclidean, cosine]
-        :return:
+        :param overwrite: if True, the index with the same name will be dropped and recreated.
         '''
         if self.has_index(name):
             if not overwrite:
@@ -131,7 +132,7 @@ def neo4j_driver(try_connect=True)->Optional[Neo4jDriver]:
     if _driver is None:
         if try_connect:
             try:
-                connect_to_neo4j(None)
+                connect_to_neo4j()
             except Exception as e:
                 raise RuntimeError('Neo4j driver is not initialized. Also, auto connection is failed. Please call "connect_to_neo4j" first.') from e
     return _driver
@@ -141,20 +142,27 @@ def new_neo4j_session():
     '''
     driver = neo4j_driver()
     return driver.session()
-def neo4j_session()->Optional[Session]:
+def neo4j_session()->Optional[Neo4jSession]:
     '''
     return the singleton neo4j session. You must connect to neo4j first, otherwise it will be None.
     '''
     return _single_session
 
 class Neo4jConnectMethod(CrossModuleEnum):
-    BOLT = ('bolt', 7687)
+    BOLT = ('bolt', 7687) # name, default port
     HTTP = ('http', 7474)
     HTTPS = ('https', 7473)
-def connect_to_neo4j(password:str, url:str='localhost', port:int=None, username:str='neo4j', method=Neo4jConnectMethod.BOLT)->Neo4jDriver:
+
+DEFAULT_NEO4J_USERNAME = os.getenv('NEO4J_USER', 'neo4j')
+'''You can set this value in environment variable NEO4J_USER. If not set, the default value is neo4j.'''
+DEFAULT_NEO4J_PASSWORD = os.getenv('NEO4J_PW', None)
+'''You can set this value in environment variable NEO4J_PW. If not set, the default value is None(Means no Authentication).'''
+
+def connect_to_neo4j(username:str=DEFAULT_NEO4J_USERNAME, password:str=DEFAULT_NEO4J_PASSWORD, url:str='localhost', port:int=None, method=Neo4jConnectMethod.BOLT)->Neo4jDriver:
     '''
-    if already connected, return the existing driver directly.
-    :param password: the password of neo4j. if password is None, it will try to connect to neo4j without authentication.
+    if already connected, return the existing driver directly. If username or pw is None, it will try to connect to neo4j without authentication.
+    :param username: the username of neo4j
+    :param password: the password of neo4j
     '''
     global _driver, _single_session
     if _driver is not None:
@@ -162,7 +170,7 @@ def connect_to_neo4j(password:str, url:str='localhost', port:int=None, username:
     if port is None:
         port = method.value[1]
     uri = f'{method.value[0]}://{url}:{port}'
-    if password is None:
+    if username is None or password is None:
         _driver = GraphDatabase.driver(uri)
     else:
         _driver = GraphDatabase.driver(uri, auth=(username, password))

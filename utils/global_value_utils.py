@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-'''常用的全局变量操作, 無論如何import此模塊, 都會得到同一個全局變量字典。不涉及global()或者os.environ'''
+'''常用的全局变量操作, 無論如何import此模塊, 都會得到同一個全局變量字典。不涉及global()或者os.environ. 如果有.env, 會自動讀取。'''
 
-import sys
+import sys, os
 
 _needInit = True
 _moduleName = __name__.split('.')[-1]
@@ -15,6 +15,8 @@ for module in sys.modules.keys():
         break
 if _needInit:
     _globalValues = {}
+    from dotenv import load_dotenv
+    load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env')))
 
 def SetGlobalValue(key: str, value: object):
     _globalValues[key] = value

@@ -1,10 +1,25 @@
 '''PromptedObj is those objects that having a prompt for describing itself.'''
 from utils.global_value_utils import GetOrAddGlobalValue
 from utils.neo4j_utils import neo4j_session
-from utils.AI_utils import get_embedding_vector
+from utils.AI_utils import get_embedding_vector, DEFAULT_EMBED_DIMENSION
 from typing import Union
+import numpy as np
 
-class PromptedObjMeta(type):
+class PromptedObjMetaMeta(type):
+    def __new__(self, *args, **kwargs):
+        metacls:'PromptedObjMeta' = super().__new__(self, *args, **kwargs)
+        if metacls.BASE_CLS_NAME is not None and metacls.ADD_TO_KG:
+            # try to create vector index if not exist
+            session = neo4j_session()
+            if not session.has_index(f'{metacls.BASE_CLS_NAME}_INDEX'):
+                session.create_vector_index(name=f'{metacls.BASE_CLS_NAME}_INDEX', label=metacls.BASE_CLS_NAME,
+                                            propertyKey='prompt_embed', vector_dimension=DEFAULT_EMBED_DIMENSION,
+                                            similarity_function='cosine', overwrite=False)
+        return metacls
+
+_INIT_NODE_CYPHER_LINES:list = GetOrAddGlobalValue('_CREATE_NODE_CYPHER_LINES', list())
+'''Saving all commands during the definition of PromptedObj. They will be executed after all PromptedObj are defined.'''
+class PromptedObjMeta(type, metaclass=PromptedObjMetaMeta):
     BASE_CLS_NAME:str = None
     '''override this to determine the base class' name'''
     ADD_TO_KG:bool = True
@@ -22,25 +37,33 @@ class PromptedObjMeta(type):
         return cls._SUBCLS_DICT
     @classmethod
     def subcls_exist_in_kg(cls, subcls_name:str):
-        '''check if a subclass exists in knowledge graph'''
+        '''check if a subclass exists in knowledge graph. You can also override this to customize the checking method.'''
         return neo4j_session().run(f'match (n:{cls.BASE_CLS_NAME}) where n.name="{subcls_name}" return n').single() is not None
     @classmethod
-    def create_subcls_node_in_kg(cls, subcls:Union[type,'PromptedObj']):
+    def subcls_need_update(cls, subcls:Union[type, 'PromptedObj'])->bool:
+        '''Check if a subclass need to be updated in knowledge graph. You can also override this to customize the checking method.'''
+        current_node_prompt = neo4j_session().run(f'match (n:{cls.BASE_CLS_NAME}) where n.name="{subcls.cls_name()}" return n.prompt').single()[0]
+        return current_node_prompt != subcls.prompt
+    @classmethod
+    def create_subcls_cyphers(cls, subcls:Union[type,'PromptedObj'])->Union[list, str]:
         '''
         Override this to create a node for a subclass in knowledge graph.
         :param subcls: the subclass to be updated
+        :return: You MUST return a list/str of cypher lines for creating the node.
         '''
         raise NotImplementedError
     @classmethod
-    def update_subcls_node_in_kg(cls, subcls:Union[type,'PromptedObj']):
+    def update_subcls_cyphers(cls, subcls:Union[type,'PromptedObj'])->Union[list, str]:
         '''
         Override this to update a node for a subclass in knowledge graph.
         This function will only be carry out when the prompt of the subclass is changed.
         :param subcls: the subclass to be updated
+        :return: You MUST return a list/str of cypher lines for updating the node.
         '''
         raise NotImplementedError
 
     def __new__(self, *args, **kwargs):
+        global _CREATE_NODE_CYPHER_LINES, _UPDATE_NODE_CYPHER_LINES
         cls_name = args[0]
         if cls_name != self.BASE_CLS_NAME and cls_name not in self.cls_dict():
             cls:'PromptedObj' = super().__new__(self, *args, **kwargs)
@@ -49,11 +72,17 @@ class PromptedObjMeta(type):
             self.cls_dict()[cls_name] = cls
             if self.ADD_TO_KG:
                 if not self.subcls_exist_in_kg(cls_name):
-                    self.create_subcls_node_in_kg(cls_name)
-                else:
-                    current_node_prompt = neo4j_session().run(f'match (n:{self.BASE_CLS_NAME}) where n.name="{cls_name}" return n.prompt').single()[0]
-                    if current_node_prompt != cls.prompt:
-                        self.update_subcls_node_in_kg(cls)
+                    cyphers = self.create_subcls_cyphers(cls)
+                    if isinstance(cyphers, str):
+                        _INIT_NODE_CYPHER_LINES.append(cyphers)
+                    else:
+                        _INIT_NODE_CYPHER_LINES.extend(self.create_subcls_cyphers(cls))
+                elif self.subcls_need_update(cls):
+                    cyphers = self.update_subcls_cyphers(cls)
+                    if isinstance(cyphers, str):
+                        _INIT_NODE_CYPHER_LINES.append(cyphers)
+                    else:
+                        _INIT_NODE_CYPHER_LINES.extend(self.update_subcls_cyphers(cls))
             return cls
         if cls_name == self.BASE_CLS_NAME:
             return super().__new__(self, *args, **kwargs)
@@ -61,26 +90,39 @@ class PromptedObjMeta(type):
             return self.cls_dict()[cls_name]
 
 class PromptedObj:
+    '''
+    Base class of all prompted object. You should use this class combined with your custom PromptedObjMeta.
+    e.g.::
+        class MyPromptedObjMeta(metaclass=PromptedObjMeta):
+            ...
+        class MyPromptedObj(PromptedObj, metaclass=MyPromptedObjMeta):
+            ...
+    '''
+
     prompt:str = None
+    '''the prompt for describing the object. Override this in subclass'''
+
+    _prompt_embedding:np.array = None # for caching the embedding vector of the prompt
     _kg_id = None # will be assigned during the creation of the node in knowledge graph
 
     @classmethod
     def cls_name(cls):
         return cls.__qualname__
     @classmethod
-    def kg_id(cls):
+    def kg_id(cls: Union['PromptedObjMeta', 'PromptedObj']):
         '''return the element id in KG.'''
+        if cls._kg_id is None and cls.cls_name() != 'PromptedObj':
+            cls._kg_id = neo4j_session().run(f'match (n:{cls.BASE_CLS_NAME}) where n.name="{cls.cls_name()}" return id(n)').single()[0]
         return cls._kg_id
     @classmethod
-    def prompt_embedding(cls):
+    def prompt_embedding(cls)->np.array:
         '''return the embedding vector of the prompt'''
-        return get_embedding_vector(cls.prompt)
+        if cls._prompt_embedding is None:
+            cls._prompt_embedding = get_embedding_vector(cls.prompt)
+        return cls._prompt_embedding
     @classmethod
-    def all_subcls(cls):
+    def all_subclses(cls):
         '''return all subclass of this class'''
         return cls.__subclasses__()
 
 __all__ = ['PromptedObjMeta', 'PromptedObj']
-
-class A:
-    pass
