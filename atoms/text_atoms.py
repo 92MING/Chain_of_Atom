@@ -9,7 +9,6 @@ from utils.AI_utils import get_chat
 '''TextToEquations Value Input Class'''
 class TextDescribeEquations(Value):
     prompt = "Shows a short passage describing the problems of sets of equation in real life"
-
     @classmethod
     def run(cls, text:str):
         pass

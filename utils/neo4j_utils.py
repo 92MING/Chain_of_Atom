@@ -118,6 +118,18 @@ class Neo4jSession(Session):
                 self.drop_index(name)
         cypher = f'CALL db.index.vector.createNodeIndex({name}, {label}, {propertyKey}, {vector_dimension}, {similarity_function})'
         self.run(cypher)
+    def query_vector_index(self, name, number, prompt_embed):
+        '''
+        Find a group of nodes in KG with similar prompt_embed. Neo4j version >= 5.11 is required.
+        :param name: the name of the index
+        :param number: number of the most similar embedding
+        :param prompt_embed:
+        '''
+        if self.has_index(name):
+            cypher = f'CALL db.index.vector.queryNodes({name}, {number}, {prompt_embed}) YIELD node AS similarPrompt, score RETURN similarPrompt.name AS cls_name, score'
+        records = self.run(cypher)
+        return records.values()
+
     def drop_index(self, index_name):
         '''
         drop the index with the given name

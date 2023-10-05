@@ -3,10 +3,12 @@ Thinker is the main class for the whole running. Create a new instance of Thinke
 '''
 import re
 
-from utils.AI_utils import ChatModel, get_chat
+from utils.AI_utils import ChatModel, get_chat, get_embedding_vector
 from atoms import *
 from data_struct.atom import *
+from data_struct.value import *
 from data_struct.converter import IntListConverter
+from utils.neo4j_utils import neo4j_session
 
 class Thinker:
 
@@ -104,7 +106,13 @@ class Thinker:
         for index in sorted(ret, reverse=True):
             del input_prompts[index]
 
+    def create_value(self, value_prompt: str, class_name: str):
+        class temp_Value(Value):
+
+        return
+
     def outputvalue_to_atomprompt(self, value_prompt: str):
+
         pass
 
     def atomprompt_to_inputvalue(self, atom_prompt: str):
@@ -113,36 +121,54 @@ class Thinker:
     def thinking_process_IPO(self, question: str):
         print("start thinking Q:", question)
         ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
-        value = self._get_quoted_strs(ret)[0]
-        print("AI thinks the final output is:", value)
+        output = self._get_quoted_strs(ret)[0]
+        print("AI thinks the final output is:", output)
+        output_embed = get_embedding_vector(output)
+        ret = session.query_vector_index(f'{Value.BASE_CLS_NAME}_INDEX',1,output_embed)
+        values: list[Value,...] = []
+        if ret[0][1]>=0.9:
+            output = ret[0][0]
+            values.append(output)
+            'TREE structure implement'
+        else:
+
+
         '''
         prototype:
-        use knn to find the k-closest value which prompt is similar to the output(i.e value)
+        use neo4j to search k closest output_value 
         values = [input/outputs to be check]
         if (chatgpt think is ok):
-            values.append(value)
-            tree = parent(value) 'later change to KG one'
+            values.append(output)
+            tree = parent(output) 'later change to KG one'
         else:
-            new_value = create_new_output_value in KG
-            values.append(new_value)
-            tree = parent(new_value)
-            
-        information match are shown above
-        while not information_match(question,values) until chatgpt think directly match occur for all value
-            linked_atom = values.output_linked_atom (search for atom linked with this output in output relationship)
-            if (linked_atom):
-                
-            else:
-                new_atom = create_new_atom in KG, build relationship for this atom and that output
-                search for input
+            output = create_new_output_value in KG
+            values.append(output)
+            tree = parent(output)
         
+        Information_match(question,values)
+        while len(values): until chatgpt think directly match occur for all value
+            value = values[0]
+            values.pop(0)
+            linked_atom = values.output_linked_atom (search for atom linked with this output in output relationship)
+            if (linked_atom is null):
+                linked_atom = create_new_atom in KG, build relationship for this atom and that output
+                linked_atom->parent = value
+                value->child = linked_atom
+                search for required input atoms existed in KG
+                if (input_atoms not in KG):
+                    inputs_atom = create_new_value in KG, build
+                    values.append(input_atoms)
+            else:
+                linked_atom->parent = value
+                value->child = linked_atom
+                input_atoms = linked_atom.inputs()
+                values.append(intput_atoms)
+    
         if out the loop -> all oldest input value are found:
         ask chatgpt to follow the tree structure to solve the problem
         and send out the final ans
         '''
         while not self.Information_match(question, output):
-
-
 
 
 
