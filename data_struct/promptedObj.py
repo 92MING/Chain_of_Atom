@@ -17,7 +17,7 @@ class PromptedObjMetaMeta(type):
                                             similarity_function='cosine', overwrite=False)
         return metacls
 
-_INIT_NODE_CYPHER_LINES:list = GetOrAddGlobalValue('_CREATE_NODE_CYPHER_LINES', list())
+_INIT_NODE_CYPHER_LINES:dict = GetOrAddGlobalValue('_CREATE_NODE_CYPHER_LINES', dict())
 '''Saving all commands during the definition of PromptedObj. They will be executed after all PromptedObj are defined.'''
 class PromptedObjMeta(type, metaclass=PromptedObjMetaMeta):
     BASE_CLS_NAME:str = None
@@ -27,6 +27,8 @@ class PromptedObjMeta(type, metaclass=PromptedObjMetaMeta):
     Override this to determine whether a subclass should be added as a node to the knowledge graph.
     Vector index will also be added to the knowledge graph if not exist.
     '''
+    INIT_PRIORITY:int = 0
+    '''Override this to determine the priority of executing the initialization cyphers. The larger the later.'''
 
     _SUBCLS_DICT = None
     @classmethod
@@ -71,18 +73,20 @@ class PromptedObjMeta(type, metaclass=PromptedObjMetaMeta):
                 raise Exception(f"{self.BASE_CLS_NAME}'s subclass '{cls_name}' should have a prompt.")
             self.cls_dict()[cls_name] = cls
             if self.ADD_TO_KG:
+                if cls.INIT_PRIORITY not in _INIT_NODE_CYPHER_LINES:
+                    _INIT_NODE_CYPHER_LINES[cls.INIT_PRIORITY] = []
                 if not self.subcls_exist_in_kg(cls_name):
                     cyphers = self.create_subcls_cyphers(cls)
                     if isinstance(cyphers, str):
-                        _INIT_NODE_CYPHER_LINES.append(cyphers)
+                        _INIT_NODE_CYPHER_LINES[cls.INIT_PRIORITY].append(cyphers)
                     else:
-                        _INIT_NODE_CYPHER_LINES.extend(self.create_subcls_cyphers(cls))
+                        _INIT_NODE_CYPHER_LINES[cls.INIT_PRIORITY].extend(self.create_subcls_cyphers(cls))
                 elif self.subcls_need_update(cls):
                     cyphers = self.update_subcls_cyphers(cls)
                     if isinstance(cyphers, str):
-                        _INIT_NODE_CYPHER_LINES.append(cyphers)
+                        _INIT_NODE_CYPHER_LINES[cls.INIT_PRIORITY].append(cyphers)
                     else:
-                        _INIT_NODE_CYPHER_LINES.extend(self.update_subcls_cyphers(cls))
+                        _INIT_NODE_CYPHER_LINES[cls.INIT_PRIORITY].extend(self.update_subcls_cyphers(cls))
             return cls
         if cls_name == self.BASE_CLS_NAME:
             return super().__new__(self, *args, **kwargs)

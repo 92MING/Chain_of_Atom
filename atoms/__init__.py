@@ -8,8 +8,11 @@ from .combination_atom import *
 from utils.neo4j_utils import neo4j_session
 from data_struct.promptedObj import _INIT_NODE_CYPHER_LINES
 with neo4j_session().begin_transaction() as tx:
-    for line in _INIT_NODE_CYPHER_LINES:
-        tx.run(line)
+    priority_list = list(_INIT_NODE_CYPHER_LINES.keys())
+    priority_list.sort()
+    for priority in priority_list:
+        for line in _INIT_NODE_CYPHER_LINES[priority]:
+            tx.run(line)
 
 # init _kg_id for all PromptedObj
 from data_struct.promptedObj import PromptedObj
