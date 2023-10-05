@@ -54,4 +54,6 @@ class TextToEquations(Atom):
         ret = ret.replace('"', '')
         if ',' in ret:
             ret = re.split(r'\s*,\s*', ret)
+        else:
+            ret = [ret]
         return ret

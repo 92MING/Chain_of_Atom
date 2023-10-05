@@ -6,6 +6,7 @@ import re
 from utils.AI_utils import ChatModel, get_chat
 from atoms import *
 from data_struct.atom import *
+from data_struct.converter import IntListConverter
 
 class Thinker:
 
@@ -50,12 +51,15 @@ class Thinker:
         """
     # endregion
 
-    def Information_match(self, problem: str, input: Value):
+    def Information_match(self, problem: str, input_prompts: list):
+        check = ""
+        for i, input_prompt in enumerate(input_prompts):
+            check += f"{i+1}. {input_prompt} "
         prompt_ = f"""
         Suppose you are playing a matching game now. 
         You receive a problem in this game. Under this problems, you can just simply extract some basic information from the problem without any calculation.
-        Alongside you receive a input requirement. You are required to determine whether the basic information you extracted can simply fulfil the 
-        requirement. During the matching for basic information and requirement, no logical deduction can be involved.
+        Alongside you receive a list of input requirements. You are required to determine whether the basic information you extracted can simply fulfil the 
+        requirement one by one. During the matching for basic information and requirements, no logical deduction can be involved.
         Answer 1 if you think information could successfully match the requirement, else 0.
         Quote the answer with '[ ]'.
         
@@ -63,13 +67,14 @@ class Thinker:
         ------------------
         Q: 
         Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
-        Input Requirement: Shows the system of the linear equation solve the problems.
+        Input Requirement: 1. Shows the system of the linear equation solve the problems. 2. Shows the text for building up systems of linear equation
         
-        A: [0]
+        A: [0,1]
         
         Reason: 
-        The problem content just does not directly relate to system of the linear equation. 
+        1. The problem content just does not directly relate to system of the linear equation. 
         Only after deductions made on problem, system of linear equation can be built 
+        2. The given problems has given the text information for pen and ball prices. Satisfy the basic requirement
         ------------------
         
         example 2:
@@ -86,7 +91,7 @@ class Thinker:
         Now, think on this matching game.
         Q: 
         Problem: {problem}
-        Input Requirement: {input}
+        Input Requirement: {check}
         
         A:(Your answer)
         -----------------
@@ -94,14 +99,51 @@ class Thinker:
         """
 
         ret = get_chat(prompt_,model=self.model,temperature=self.temperature)
-        return self._get_quoted_strs(ret)[0]
+        ret = self._get_quoted_strs(ret)[0]
+        ret = IntListConverter(ret)
+        for index in sorted(ret, reverse=True):
+            del input_prompts[index]
 
+    def outputvalue_to_atomprompt(self, value_prompt: str):
+        pass
+
+    def atomprompt_to_inputvalue(self, atom_prompt: str):
+        pass
 
     def thinking_process_IPO(self, question: str):
         print("start thinking Q:", question)
         ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
-        final_output = self._get_quoted_strs(ret)[0]
-        print("AI thinks the final output is:", final_output)
+        value = self._get_quoted_strs(ret)[0]
+        print("AI thinks the final output is:", value)
+        '''
+        prototype:
+        use knn to find the k-closest value which prompt is similar to the output(i.e value)
+        values = [input/outputs to be check]
+        if (chatgpt think is ok):
+            values.append(value)
+            tree = parent(value) 'later change to KG one'
+        else:
+            new_value = create_new_output_value in KG
+            values.append(new_value)
+            tree = parent(new_value)
+            
+        information match are shown above
+        while not information_match(question,values) until chatgpt think directly match occur for all value
+            linked_atom = values.output_linked_atom (search for atom linked with this output in output relationship)
+            if (linked_atom):
+                
+            else:
+                new_atom = create_new_atom in KG, build relationship for this atom and that output
+                search for input
+        
+        if out the loop -> all oldest input value are found:
+        ask chatgpt to follow the tree structure to solve the problem
+        and send out the final ans
+        '''
+        while not self.Information_match(question, output):
+
+
+
 
 
     # def think(self, question:str):
