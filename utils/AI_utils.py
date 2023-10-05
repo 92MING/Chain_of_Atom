@@ -5,11 +5,12 @@ import tiktoken
 import numpy as np
 from openai.embeddings_utils import cosine_similarity as _cosine_similarity
 from openai.error import *
-from .global_value_utils import *
-from .classes.cross_module_enum import CrossModuleEnum
-from .crypto_utils import getSHA256Hash_fromString
-from typing import Iterable, Union
+from utils.global_value_utils import *
+from utils.classes.cross_module_enum import CrossModuleEnum
+from utils.crypto_utils import getSHA256Hash_fromString
 from utils.sqlite_utils import Database, NotFoundError
+from typing import Iterable, Union
+
 
 _enc = GetOrAddGlobalValue("_OPENAI_ENCODING", tiktoken.get_encoding('cl100k_base'))
 _apiKeys: set = GetOrAddGlobalValue("_OPENAI_API_KEYS", set())
@@ -76,12 +77,26 @@ _embedCacheTable = _embedCacheDB.create_table('embedding_cache', pk=['hash', 'mo
                                               not_null=('hash', 'embedding'),
                                               if_not_exists=True)
 class EmbedModel(CrossModuleEnum):
+
     OPENAI = ('openai', 1536) # name for sqlite, vector dimension
+    # TODO: add more models
+
     @property
     def dimension(self)->int:
         return self.value[1]
+
+DEFAULT_EMBED_MODEL = EmbedModel.OPENAI
+'''YOu can change this to other model by setting environment variable "EMBEDDING_MODEL" to the name of the model in EmbedModel(Enum).'''
+if os.getenv("EMBEDDING_MODEL", None) is not None:
+    model_name = os.getenv("EMBEDDING_MODEL", None)
+    for model in EmbedModel:
+        if model.name.lower() == model_name.lower() or model.value[0].lower() == model_name.lower():
+            DEFAULT_EMBED_MODEL = model
+            break
+DEFAULT_EMBED_DIMENSION = DEFAULT_EMBED_MODEL.dimension
+
 @errorHandler
-def get_embedding_vector(text:str, model=EmbedModel.OPENAI)->np.ndarray:
+def get_embedding_vector(text:str, model=DEFAULT_EMBED_MODEL)->np.ndarray:
     '''Get embedding vector from text (through OpenAI API)'''
     hash = getSHA256Hash_fromString(text)
     model_name = model.value
