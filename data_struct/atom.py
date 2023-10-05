@@ -1,47 +1,26 @@
 import numpy as np
-from promptedObj import PromptedObjMeta
+from promptedObj import PromptedObjMeta, PromptedObj
 from value import Value
 from typing import Tuple, Union
 from utils.AI_utils import get_embedding_vector
 from utils.global_value_utils import GetOrAddGlobalValue
 from utils.neo4j_utils import neo4j_session
 
-# region graph db
-def _atom_exist_in_db(atom_name:str):
-    return neo4j_session().run(f'match (n:Atom) where n.name="{atom_name}" return n').single() is not None
-def _add_atom(atom_cls:Union['Atom', type]):
-    '''
-    Add an atom to graph db.
-    :param atom_cls: this param should be a subclass of Atom. It is labeled as 'Atom' just for type hint.
-    '''
-    if not _atom_exist_in_db(atom_cls.atom_name()):
-        neo4j_session().run(f'create (n:Atom {{name:"{atom_cls.atom_name()}"}})')
-# endregion
-
-# region atom base class
-_ATOM_CLSES = GetOrAddGlobalValue('_ATOM_CLSES', dict()) # cls name : atom cls
 class AtomMeta(PromptedObjMeta):
     '''AtomMeta is a baseclass for Atom. It is for doing some initialization work when a Atom subclass is defined.'''
-    BASE_CLS_NAME = __name__
+    BASE_CLS_NAME = 'Atom'
     ADD_TO_KG = True
 
     @classmethod
-    def create_subcls_node_in_kg(cls, subcls: 'Value'):
-        cypher = f"""CREATE (n:{cls.BASE_CLS_NAME} {{name: "{subcls.cls_name()}", prompt: "{subcls.prompt}"}})"""
-    # def __new__(self, *args, **kwargs):
-    #     cls_name = args[0]
-    #     if cls_name != 'Atom' and cls_name not in _ATOM_CLSES:
-    #         cls = super().__new__(self, *args, **kwargs)
-    #         if cls.prompt is None:
-    #             raise Exception(f'Atom subclass "{cls_name}" should have a prompt.')
-    #         _ATOM_CLSES[cls_name] = cls
-    #         return cls
-    #     if cls_name == 'Atom':
-    #         return super().__new__(self, *args, **kwargs)
-    #     else:
-    #         return _ATOM_CLSES[cls_name]
+    def create_subcls_cyphers(cls, subcls):
+        return f"""
+        CREATE (n:{cls.BASE_CLS_NAME} {{
+            name: "{subcls.cls_name()}", 
+            prompt: "{subcls.prompt}"}}
+            
+        )"""
 
-class Atom(AtomMeta):
+class Atom(metaclass=AtomMeta, PromptedObj):
     '''
     Atom is 1 single action with clear param/ result description. It is a basic unit of a step.
     Override this class to define your own atom.
@@ -52,11 +31,6 @@ class Atom(AtomMeta):
     '''Override this cls property to specify the input params of the atom.'''
     outputs:Tuple[Value,...] = None
     '''Override this cls property to specify the output params of the atom.'''
-    prompt:str = None
-    '''Override this to describe the atom function.'''
-
-    _prompt_embed : np.array = None
-    _id :int = None # the unique id of this atom in sql table
 
     def __init__(self):
         raise Exception("Atom is a static class, don't initialize it. You should herit to define your own atom with input/ output params and run method.")
@@ -129,10 +103,10 @@ def all_atom_clses():
 def all_atom_prompts()->Tuple[str, ...]:
     '''Get all atom prompts.'''
     return tuple(atom.prompt for atom in all_atom_clses())
-def all_atom_inputs()->Tuple[Tuple[Param, ...], ...]:
+def all_atom_inputs()->Tuple[Tuple[Value, ...], ...]:
     '''Get all atom input params.'''
     return tuple(atom.inputs for atom in all_atom_clses())
-def all_atom_outputs()->Tuple[Tuple[Param, ...], ...]:
+def all_atom_outputs()->Tuple[Tuple[Value, ...], ...]:
     '''Get all atom output params.'''
     return tuple(atom.outputs for atom in all_atom_clses())
 
@@ -143,5 +117,3 @@ def k_similar_atoms(prompt:str, k=5):
     prompt_embed = get_embedding_vector(prompt)
     # print(sorted(_ATOM_CLSES.values(), key=lambda atom: np.dot(atom.prompt_embed(), prompt_embed)))
     return sorted(_ATOM_CLSES.values(), key=lambda atom: np.arccos(np.dot(atom.prompt_embed(), prompt_embed)))[:k]
-
-# endregion

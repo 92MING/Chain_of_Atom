@@ -112,7 +112,7 @@ class PromptedObj:
     def kg_id(cls: Union['PromptedObjMeta', 'PromptedObj']):
         '''return the element id in KG.'''
         if cls._kg_id is None and cls.cls_name() != 'PromptedObj':
-            cls._kg_id = neo4j_session().run(f'match (n:{cls.BASE_CLS_NAME}) where n.name="{cls.cls_name()}" return id(n)').single()[0]
+            cls._kg_id = neo4j_session().run(f'match (n:{cls.BASE_CLS_NAME}) where n.name="{cls.cls_name()}" return elementId(n)').single()[0]
         return cls._kg_id
     @classmethod
     def prompt_embedding(cls)->np.array:
