@@ -21,6 +21,17 @@ class AtomMeta(PromptedObjMeta):
         # TODO: update atom prompt
         ...
 
+    @classmethod
+    def create_subcls_cyphers(cls, subcls: Union['Atom', type]):
+        return f"""
+        CREATE (n:{cls.BASE_CLS_NAME} 
+        {{
+            name: "{subcls.cls_name()}", 
+            prompt: "{subcls.prompt}",
+            prompt_embed: "{subcls.prompt_embedding().tolist()}"
+        }})
+        """
+
 class Atom(metaclass=AtomMeta, PromptedObj):
     '''
     Atom is 1 single action with clear param/ result description. It is a basic unit of a step.

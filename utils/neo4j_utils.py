@@ -123,12 +123,50 @@ class Neo4jSession(Session):
         Find a group of nodes in KG with similar prompt_embed. Neo4j version >= 5.11 is required.
         :param name: the name of the index
         :param number: number of the most similar embedding
-        :param prompt_embed:
+        :param prompt_embed: the embedding vector of the prompt want to be searched
         '''
         if self.has_index(name):
             cypher = f'CALL db.index.vector.queryNodes({name}, {number}, {prompt_embed}) YIELD node AS similarPrompt, score RETURN similarPrompt.name AS cls_name, score'
         records = self.run(cypher)
         return records.values()
+
+    def query_linked_relationship(self,node_label: str,node_name: str, relationship: str):
+        '''
+        Find the nodes linked with the node with node_name and in that relationship
+        :param node_label: the label of the node
+        :param node_name: the name of the node
+        :param relationship: the name of the relationship of these two nodes
+        '''
+        'Check existence of the node'
+        cypher = f'match (n:{node_label}) where n.name="{node_name}" return n'
+        records = self.run(cypher).single()
+        if records is None:
+            return None
+        cypher = f'match (:{node_label} {{name: "{node_name}"}}) -[:{relationship}]-(node) return node.prompt'
+        'Assume only single relationship for value-atom-value'
+        records = self.run(cypher).single()
+        if records is None:
+            return None
+        records = records[0]
+        return records
+
+    def create_relationship(self, into_node_label: str, into_node_name: str, out_node_label: str, out_node_name: str, relationship: str):
+        '''
+        create the relationship between two node with stated. i.e. outer_node --relationship--> inter_node
+        :param into_node_label: the label of the node pointing to
+        :param into_node_name: the name of the node pointing to
+        :param out_node_label: the label of the node pointing out
+        :param out_node_name: the name of the node pointing out
+        :param relationship: the name of the relationship of these two nodes
+        '''
+        cypher1 = f'match (n:{into_node_label}) where n.name="{into_node_name}" return n'
+        cypher2 = f'match (n:{out_node_label}) where n.name="{out_node_name}" return n'
+        record1 = self.run(cypher1).single()
+        record2 = self.run(cypher2).single()
+        if record1 is None or record2 is None:
+            return None
+        cypher = f'''match (into_node:{into_node_label} {{name: "{into_node_name}"}}), (out_node:{out_node_label} {{name: "{out_node_name}"}}) create (out_node)-[:{relationship}]->(into_node)'''
+        self.run(cypher)
 
     def drop_index(self, index_name):
         '''

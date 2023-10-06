@@ -9,14 +9,15 @@ from utils.AI_utils import get_chat
 
 '''CalculateFormula Value Input Class'''
 class CalculationFormula(Value):
-    prompt = "Shows mathematics formula to be calculated"
+    prompt = "mathematics formula to be calculated"
+    example_prompt = '1+1'
     @classmethod
-    def run(cls,formula: str, example_prompt='1+1'):
+    def run(cls,formula: str):
         pass
 
 '''CalculateFormula Value Output Class'''
 class CalculationResult(Value):
-    prompt = "Shows calculation Result"
+    prompt = "calculation Result of a formula"
     @classmethod
     def run(cls,formula: float):
         pass
@@ -50,8 +51,9 @@ class CalculateFormula(Atom):
 '''VerifyFormulaResult Value Input Class'''
 class CalculationFormulaVerify(Value):
     prompt ="Shows calculation formula to be verified"
+    example_prompt = 'formula: 1+1,result: 2'
     @classmethod
-    def run(cls, formula: str,expected_result:float, example_prompt='1+1'):
+    def run(cls, formula: str,expected_result:float):
         pass
 
 '''VerifyFormulaResult Value Output Class'''
@@ -76,8 +78,9 @@ class VerifyFormulaResult(Atom):
 '''Permutations Value Input Class / Permutations Value Output Class (thinking)'''
 class PermutationsNumListStorage(Value):
     prompt = 'Shows a list of number'
+    example_prompt = '[a, b, c]'
     @classmethod
-    def run(cls, numlist:list, example_prompt='[a, b, c]'):
+    def run(cls, numlist:list):
         pass
 
 class Permutations(Atom):
@@ -99,15 +102,17 @@ class SortOrder (Value):
 '''Sort Value Input Class'''
 class SortNumListStorage(Value):
     prompt = 'Shows a list of number for sorting'
+    example_prompt = '[a, b, c]'
     @classmethod
-    def run(cls, numlist:list, example_prompt='[a, b, c]'):
+    def run(cls, numlist:list):
         pass
 
 '''Sort Value Output Class'''
 class SortedNumListStorage(Value):
     prompt = 'Shows a sorted list of number'
+    example_prompt = '[a, b, c]'
     @classmethod
-    def run(cls, numlist:list,  example_prompt='[a, b, c]'):
+    def run(cls, numlist:list):
         pass
 
 class Sort(Atom):
@@ -120,8 +125,9 @@ class Sort(Atom):
 
 class EquationStorage(Value):
     prompt = 'Shows the equation to solve'
+    example_prompt = 'x^2 + 2x + 1 = 0'
     @classmethod
-    def run(cls, formula:str , example_prompt='x^2 + 2x + 1 = 0'):
+    def run(cls, formula:str):
         pass
 
 class SolveOneUnknownEquation(Atom):
@@ -138,15 +144,17 @@ class SolveOneUnknownEquation(Atom):
 '''SolveLinearEquations Value Input Class'''
 class SystemOfEquationsAnswer(Value):
     prompt = "Shows the system of the linear equation"
+    example_prompt = '["8x + 3y− 2z = 9", "−4x+ 7y+ 5z = 15", "3x + 4y− 12z= 35"]'
     @classmethod
-    def run(cls,formula: list, example_prompt='["8x + 3y− 2z = 9", "−4x+ 7y+ 5z = 15", "3x + 4y− 12z= 35"]'):
+    def run(cls,formula: list):
         pass
 
 '''SolveLinearEquations Value Output Class'''
 class CalculationResultForLinearEquation(Value):
     prompt = "Shows the answer mapping from linear equation"
+    example_prompt = '{"x": 1, "y": 2, "z": 3}'
     @classmethod
-    def run(cls, answer: dict, example_prompt='{"x": 1, "y": 2, "z": 3}'):
+    def run(cls, answer: dict):
         pass
 
 class SolveLinearEquations(Atom):

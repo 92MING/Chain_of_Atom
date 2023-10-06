@@ -8,6 +8,7 @@ from atoms import *
 from data_struct.atom import *
 from data_struct.value import *
 from data_struct.converter import IntListConverter
+from typing import Union
 from utils.neo4j_utils import neo4j_session
 
 class Thinker:
@@ -22,38 +23,83 @@ class Thinker:
         return re.findall(r'.*?\[(.*?)\].*?', s)
 
     def _init_think_prompt(self, question: str):
-        # return f"""
-        # Suppose you are solving a problem using 'Chain of Thoughts' method, and now you have come to the last step of the chain(It means after this step, you will get the answer).
-        # For this last step, what method should you use to solve it? Give a brief description of the method or the name of the method.
-        # Try to think of what should have been done before the last step & what you will get after the last step so as to help you think of the last step.
-        # Quote the last step with '[ ]'.
-        #
-        # e.g.
-        # ------------------
-        # Q: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
-        # A: Last step : [Solving system of linear equations]. I should have listed out the equations before solving the last step. After finish the last step, I will get the value of the unknowns.
-        # ------------------
-        # Now, think about the question and answer the last step of the chain of thoughts. Note that you don't need to answer the question.
-        # Q: {question}
-        # """
-
         return f"""
         Suppose you are solving a problem using 'Chain of Thoughts' method, and you are now thinking the final outputs of the problem,
         which means that you are now reaching the solution of the problem.
-        No calculation are required in this task. You are required to identify what type of answers needed to be the outputs of this problem.
-        Quote the last step with '[ ]'.
+        No calculation is required in this task. You are required to identify what types of final outputs should be
+        Quote the final output with '[ ]'.
 
         e.g.
         ------------------
         Q: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
-        A: Last step : [Solution of system of linear equations]. I should have listed out the equations before solving the last step. After finish the last step, I will get the value of the unknowns. And the solution would be the output.
+        A: Final output : [Solution of system of linear equations of this problem].  
         ------------------
-        Now, think about the question and answer the last step of the chain of thoughts. Note that you don't need to answer the question.
+        Now, think about the final output of this question. You do
         Q: {question}
         """
     # endregion
+    def _step_think_prompt(self, question: str, situation: int, finishing_chain: list[Atom] = None):
+        prompt = f"""
+        Suppose you are solving a problem using 'Chain of Thoughts' method, and you will face two situation according the question stated.
+        For the first situation (1), you have come to the last step of the chain(It means after this step, you will get the answer).
+        During the last step, what method should you use to solve it? Give a brief description of the method or the name of the method as well as the inputs of the method.
+        Try to think of what should have been done before the last step & what you will get after the last step so as to help you think of the last step.
+        Quote the last step and corresponding inputs with '[ ][ ]'.
+        
+        -----------------
+        For the second situation (2), you have given a group of finishing chains(It means after these chains or steps, you will get the answer and solve the problem).
+        However, There are some missing chains connecting the finishing chains and initial chain.(Initial chain refers to the original problem, not the first step of the solution).
+        You have to think the nearest chain to connect the finishing chains, so that the missing chains could be slowly found and whole problem could be solved.
+        During this nearest step or chain, what method should you use to connect to the finishing chains?  Give a brief description of the method or the name of the method as well as the inputs of the method.
+        Try to think what should be done before getting those finishing chains & what you will get after the nearest chain so the output of the nearest chain can be suited to the input of the head of finishing chains.
+        Quote the nearest step and corresponding inputs with '[ ][ ]'.
 
-    def Information_match(self, problem: str, input_prompts: list):
+        example 1:
+        ------------------
+        Q: 
+        Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
+        Situation: 1
+        A: Last step : [Solving system of linear equations][System of linear equations]. I should have listed out the equations before solving the last step. After finish the last step, I will get the value of the unknowns.
+        ------------------
+        
+        example 2:
+        ------------------
+        Q:
+        Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
+        Situation: 2
+        Groups of Finishing Chains: [Solving system of linear equation][System of linear equation]<-? 
+        A: The nearest step: [Construct the system of linear equation][Short text describing the details of the equation]. 
+        The final steps of this problem shown in finishing chains is solving system of linear equation with the required inputs, the sets of linear equation.
+        I should have tried to figure out the text related to equation and then build up the equation sets for connecting the chain, fulfilling the inputs and then solve the linear equation later on.
+        ------------------
+        
+        example 3:
+        ------------------
+        Q:
+        Problem: 4 Cups of milk and 2 Coffee cost 70. 5 Cups of milk and 1 Coffee cost 60. Given that david have 70 dollars, How many possible cups of milk he can buy?
+        Situation: 2
+        Groups of Finishing Chains: [Calculation on a Formula][Formula of the integer division on 70 and Prices of cup of milk]<-[Solving system of linear equation][System of linear equation]<-?
+        A: The nearest step: [Construct the system of linear equation][Short text describing the details of the equation].
+        Two steps are given in the groups of the finishing chains. Final step of this problem is to do a calculation on integer division after we have solved the linear equation. Therefore, the chain of thought should be solving the linear equation and then do the calculation to know maximum number of milk David can buy.
+        Therefore, to solve the linear equation and stated in the inputs part, we need to have the sets of equation first. Therefore, constructing the system of linear equation help connected the chains.
+        ------------------
+        Now, think about the question and answer the nearest step and input(s) of the chain of thoughts. Note that you don't need to answer the question and input(s) could be multiple if they can be summarized in single term and separated by a comma inside the same [ ].
+        Q: {question}
+        Situation: {situation}
+        """
+        if situation==2:
+            prompt += "Groups of Finishing Chains: "
+            for chain in finishing_chain:
+                prompt += f"[{chain.prompt}]["
+                for i in range(len(chain.inputs)):
+                    prompt += f"{chain.inputs[i].prompt}"
+                    if i != len(chain.inputs)-1:
+                        prompt += ","
+                prompt += "]<-"
+            prompt += "?"
+        return prompt
+
+    def information_match(self, problem: str, input_prompts: list):
         check = ""
         for i, input_prompt in enumerate(input_prompts):
             check += f"{i+1}. {input_prompt} "
@@ -106,10 +152,15 @@ class Thinker:
         for index in sorted(ret, reverse=True):
             del input_prompts[index]
 
-    def create_value(self, value_prompt: str, class_name: str):
-        class temp_Value(Value):
+    def create_promptedobject(self,promptetype: Union[Atom,Value], prompt_: str, sub_cls_name: str):
+        class TempPromptedObject(promptetype):
+            prompt = prompt_
 
-        return
+        TempPromptedObject.__qualname__ = sub_cls_name
+        TempPromptedObject.prompt_embedding()
+        TempPromptedObject.kg_id()
+        return TempPromptedObject
+
 
     def outputvalue_to_atomprompt(self, value_prompt: str):
 
@@ -123,14 +174,41 @@ class Thinker:
         ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
         output = self._get_quoted_strs(ret)[0]
         print("AI thinks the final output is:", output)
-        output_embed = get_embedding_vector(output)
+        output_embed = get_embedding_vector(output).tolist()
         ret = session.query_vector_index(f'{Value.BASE_CLS_NAME}_INDEX',1,output_embed)
         values: list[Value,...] = []
         if ret[0][1]>=0.9:
-            output = ret[0][0]
-            values.append(output)
-            'TREE structure implement'
+            output_value = ret[0][0]
+            values.append(output_value)
         else:
+            output_value = self.create_promptedobject(Value,output,output)
+            values.append(output_value)
+
+        simple_tree = []
+        self.information_match(question,values)
+        while len(values)>0:
+            value = values.pop(0)
+            linked_atom = session.query_linked_relationship(value.BASE_CLS_NAME,value.cls_name(),'output')
+
+            if linked_atom is None:
+                if len(simple_tree) ==0: prompt = self._step_think_prompt(question,1)
+                else: prompt = self._step_think_prompt(question,2,simple_tree)
+                ret = get_chat(prompt,model=self.model,temperature=self.temperature)
+                ret = self._get_quoted_strs(ret)
+                linked_atom_prompt = ret[0]
+                input_value_prompts = re.split(r'\s*,\s*', ret[1])
+
+                linked_atom = self.create_promptedobject(Atom, linked_atom_prompt, linked_atom_prompt)
+                session.create_relationship(value.BASE_CLS_NAME, value.cls_name(), linked_atom.BASE_CLS_NAME, linked_atom.cls_name(), 'output')
+                for input_value_prompt in input_value_prompts:
+                    input_value = self.create_promptedobject(Value, input_value_prompt, input_value_prompt)
+                    session.create_relationship(linked_atom.BASE_CLS_NAME, linked_atom.cls_name(), input_value.BASE_CLS_NAME, input_value.cls_name(), 'input')
+                    values.append(input_value)
+            else:
+                input_value = session.query_linked_relationship(linked_atom.BASE_CLS_NAME,linked_atom.cls_name(),'input')
+                if input_value is None:
+                    pass
+            simple_tree.append(linked_atom)
 
 
         '''
@@ -147,7 +225,6 @@ class Thinker:
         
         Information_match(question,values)
         while len(values): until chatgpt think directly match occur for all value
-            value = values[0]
             values.pop(0)
             linked_atom = values.output_linked_atom (search for atom linked with this output in output relationship)
             if (linked_atom is null):

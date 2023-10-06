@@ -17,6 +17,7 @@ with neo4j_session().begin_transaction() as tx:
 # init _kg_id for all PromptedObj
 from data_struct.promptedObj import PromptedObj
 session = neo4j_session()
-for subcls in PromptedObj.__subclasses__():
+for subcls in PromptedObj.all_subclses():
+    subcls.prompt_embedding()
     if subcls.BASE_CLS_NAME != None:
         subcls.kg_id() # this will init the _kg_id variable

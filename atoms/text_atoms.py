@@ -9,6 +9,7 @@ from utils.AI_utils import get_chat
 '''TextToEquations Value Input Class'''
 class TextDescribeEquations(Value):
     prompt = "Shows a short passage describing the problems of sets of equation in real life"
+    example_prompt = "6 apples and a orange cost 18 dollars, 4 apples and a orange cost 14 dollars"
     @classmethod
     def run(cls, text:str):
         pass
@@ -35,7 +36,7 @@ class TextToEquations(Atom):
         ------------------
         Question:
         Solve the maths problem, the prices of apple times 6 plus the prices of the orange equal 18 dollars 
-        and the prices of apple times 4 plus the prices of orange equal to 14 dollars
+        and the prices of apple times 4 plus the prices of orange equal to 14 dollars, what are the prices of apple and orange?
         
         Answer:
         "6a+b=18, 4a+b=14"
