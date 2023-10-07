@@ -142,7 +142,7 @@ class Neo4jSession(Session):
         records = self.run(cypher).single()
         if records is None:
             return None
-        cypher = f'match (:{node_label} {{name: "{node_name}"}}) -[:{relationship}]-(node) return node.name AS name
+        cypher = f'match (:{node_label} {{name: "{node_name}"}}) -[:{relationship}]-(node) return node.name AS name'
         records = self.run(cypher).values()
         if records is None:
             return None
