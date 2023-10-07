@@ -23,12 +23,21 @@ class DeferrableFunc:
         return self
     def __exit__(self, exc_type, exc_val, exc_tb):
         for defer in self.__class__._defers[::-1]:
-            defer()
+            try:
+                defer()
+            except Exception as e:
+                print(f"Error when deferring {defer}, msg: {e}, ignored.")
         self.__class__._deferringFunc = None
         self.__class__._defers.clear()
     def __call__(self, *args, **kwargs):
+        ret, err = None, None
         with self:
-            ret = self._func(*args, **kwargs)
+            try:
+                ret = self._func(*args, **kwargs)
+            except Exception as e:
+                err = e
+        if err is not None:
+            raise err
         return ret
 
     @classmethod

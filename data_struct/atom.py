@@ -19,7 +19,7 @@ class AtomMeta(PromptedObjMeta):
         {{
             name: "{subcls.cls_name()}", 
             prompt: "{subcls.prompt}",
-            prompt_embed: "{subcls.prompt_embedding().tolist()}"
+            prompt_embed: {subcls.prompt_embedding().tolist()}
         }})
         """
 
@@ -29,7 +29,7 @@ class AtomMeta(PromptedObjMeta):
         MATCH (n:{cls.BASE_CLS_NAME} {{name: "{subcls.cls_name()}"}}) 
         SET 
             n.prompt = "{subcls.prompt}",
-            n.prompt_embed = "{subcls.prompt_embedding().tolist()}"
+            n.prompt_embed = {subcls.prompt_embedding().tolist()}
         """
 
     @classmethod
@@ -127,8 +127,7 @@ def all_atom_outputs()->Tuple[Tuple[Value, ...], ...]:
 
 def k_similar_atoms(prompt:str, k=5):
     '''Get k similar atoms with the input prompt.'''
-    # TODO: use fine-tuned BERT to get embedding vectors
-    # TODO: use KNN to get k similar atoms
     prompt_embed = get_embedding_vector(prompt)
-    # print(sorted(_ATOM_CLSES.values(), key=lambda atom: np.dot(atom.prompt_embed(), prompt_embed)))
-    return sorted(Atom.all_subclses(), key=lambda atom: np.arccos(np.dot(atom.prompt_embed(), prompt_embed)))[:k]
+    cypher = f'CALL db.index.vector.queryNodes("Atom_INDEX",{k},{prompt_embed.tolist()}) YIELD node return elementId(node)'
+    atom_ids = neo4j_session().run(cypher).data()
+    return [Atom.find_subcls_byID(atom_id['elementId(node)']) for atom_id in atom_ids]

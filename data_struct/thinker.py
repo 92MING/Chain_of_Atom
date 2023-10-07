@@ -2,7 +2,6 @@
 Thinker is the main class for the whole running. Create a new instance of Thinker to start the thinking process.
 '''
 import re
-
 from utils.AI_utils import ChatModel, get_chat, get_embedding_vector
 from atoms import *
 from data_struct.atom import *
@@ -21,7 +20,7 @@ class Thinker:
 
     # region private methods
     def _get_quoted_strs(self, s:str):
-        '''get the strings quoted by []. Otherwise return None'''
+        '''get the strings quoted by []'''
         return re.findall(r'.*?\[(.*?)\].*?', s)
 
     def _init_think_output(self, question: str):
@@ -295,8 +294,6 @@ class Thinker:
         '''
         while not self.Information_match(question, output):
             pass
-
-
 
     def think(self, question:str):
         print("start thinking Q:", question)

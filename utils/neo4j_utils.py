@@ -100,6 +100,12 @@ class Neo4jSession(Session):
         '''
         cypher = f'''SHOW INDEXES WHERE name="{index_name}"'''
         return len(self.run(cypher).data()) > 0
+    def get_vector_index_property_key(self, index_name:str):
+        '''e.g. vector index A on label B with property key C. This method returns C.'''
+        if not self.has_index(index_name):
+            raise LookupError(f'index {index_name} does not exist.')
+        cypher = f'show index yield name, properties where name="{index_name}" return properties[0]'
+        return self.run(cypher).single()[0]
     def create_vector_index(self, name, label, propertyKey, vector_dimension, similarity_function:Literal['euclidean', 'cosine']='cosine',
                             overwrite=False):
         '''
@@ -118,15 +124,29 @@ class Neo4jSession(Session):
                 self.drop_index(name)
         cypher = f'CALL db.index.vector.createNodeIndex("{name}", "{label}", "{propertyKey}", {vector_dimension}, "{similarity_function}")'
         self.run(cypher)
-    def query_vector_index(self, name, number, prompt_embed):
+    def query_vector_index(self, name, prompt_embed, limit=10, return_score=False, return_embed=True):
         '''
-        Find a group of nodes in KG with similar prompt_embed. Neo4j version >= 5.11 is required.
+        Find a group of nodes in KG with similar prompt_embed.
+        Neo4j version >= 5.11 is required.
+        when "return_score" is True or "return_embed" is True, apoc is required.
         :param name: the name of the index
-        :param number: number of the most similar embedding
         :param prompt_embed: the embedding vector of the prompt want to be searched
+        :param limit: the number of nodes to be returned
+        :param return_score: if True, the similarity score will be returned
+        :param return_embed: if True, the embedding vector of the nodes will be returned
         '''
-        if self.has_index(name):
-            cypher = f'CALL db.index.vector.queryNodes("{name}", {number}, {prompt_embed}) YIELD node AS similarPrompt, score RETURN similarPrompt.name AS cls_name, score'
+        if not self.has_index(name):
+            raise LookupError(f'Index {name} does not exist.')
+        if not return_score and return_embed:
+            cypher = f'CALL db.index.vector.queryNodes("{name}", {limit}, {prompt_embed}) YIELD node return properties(node)'
+        if return_score and return_embed:
+            cypher = f'CALL db.index.vector.queryNodes("{name}", {limit}, {prompt_embed}) YIELD node, score return apoc.map.setKey(properties(node), "score", score)'
+        if return_score and not return_embed:
+            index_property_key = self.get_vector_index_property_key(name)
+            cypher = f'CALL db.index.vector.queryNodes("{name}", {limit}, {prompt_embed}) YIELD node, score return apo.map.setKey(apoc.map.removeKeys(properties(node), {index_property_key}), "score", score)'
+        if not return_score and not return_embed:
+            index_property_key = self.get_vector_index_property_key(name)
+            cypher = f'CALL db.index.vector.queryNodes("{name}", {limit}, {prompt_embed}) YIELD node return apoc.map.removeKeys(properties(node), {index_property_key})'
         records = self.run(cypher)
         return records.values()
 
@@ -205,8 +225,19 @@ DEFAULT_NEO4J_USERNAME = os.getenv('NEO4J_USER', 'neo4j')
 '''You can set this value in environment variable NEO4J_USER. If not set, the default value is neo4j.'''
 DEFAULT_NEO4J_PASSWORD = os.getenv('NEO4J_PW', None)
 '''You can set this value in environment variable NEO4J_PW. If not set, the default value is None(Means no Authentication).'''
+DEFAULT_NEO4J_PORT = os.getenv('NEO4J_PORT', None)
+'''You can set this value in environment variable NEO4J_PORT. If not set, the default value is None(Means use the default port of the method).'''
+DEFAULT_NEO4J_PORT = int(DEFAULT_NEO4J_PORT) if DEFAULT_NEO4J_PORT is not None else None
+DEFAULT_NEO4J_HOST = os.getenv('NEO4J_HOST', 'localhost')
+'''You can set this value in environment variable NEO4J_HOST. If not set, the default value is localhost.'''
+DEFAULT_NEO4J_METHOD:Neo4jConnectMethod = os.getenv('NEO4J_METHOD', Neo4jConnectMethod.BOLT.name)
+'''You can set this value in environment variable NEO4J_METHOD. If not set, the default value is bolt.'''
+for method in Neo4jConnectMethod:
+    if method.name.lower() == DEFAULT_NEO4J_METHOD.lower():
+        DEFAULT_NEO4J_METHOD = method
+        break
 
-def connect_to_neo4j(username:str=DEFAULT_NEO4J_USERNAME, password:str=DEFAULT_NEO4J_PASSWORD, url:str='localhost', port:int=None, method=Neo4jConnectMethod.BOLT)->Neo4jDriver:
+def connect_to_neo4j(username:str=DEFAULT_NEO4J_USERNAME, password:str=DEFAULT_NEO4J_PASSWORD, url:str=DEFAULT_NEO4J_HOST, port:int=DEFAULT_NEO4J_PORT, method=DEFAULT_NEO4J_METHOD)->Neo4jDriver:
     '''
     if already connected, return the existing driver directly. If username or pw is None, it will try to connect to neo4j without authentication.
     :param username: the username of neo4j
@@ -215,9 +246,10 @@ def connect_to_neo4j(username:str=DEFAULT_NEO4J_USERNAME, password:str=DEFAULT_N
     global _driver, _single_session
     if _driver is not None:
         return _driver
-    if port is None:
+    if port is None and isinstance(method, Neo4jConnectMethod):
         port = method.value[1]
-    uri = f'{method.value[0]}://{url}:{port}'
+    method_name = method.value[0] if isinstance(method, Neo4jConnectMethod) else method
+    uri = f'{method_name}://{url}:{port}'
     if username is None or password is None:
         _driver = GraphDatabase.driver(uri)
     else:

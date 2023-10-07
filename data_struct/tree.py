@@ -5,7 +5,7 @@ from collections import deque
 
 
 class Node:
-    def __init__(self, promptedobj: Union[Value,Atom], children: list[Node,...] = []):
+    def __init__(self, promptedobj: Union[Value,Atom], children: list['Node',...] = []):
         self.promptedobj = promptedobj
         self.child: list[Node,...] = children
 

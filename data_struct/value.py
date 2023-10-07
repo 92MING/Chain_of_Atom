@@ -36,7 +36,7 @@ class ValueMeta(PromptedObjMeta):
             converter: "{subcls._converter_name()}", 
             default: "{subcls.default}",
             example_prompt: "{subcls.example_prompt}", 
-            prompt_embed: "{subcls.prompt_embedding().tolist()}"
+            prompt_embed: {subcls.prompt_embedding().tolist()}
         }})
         """
     @classmethod
@@ -49,7 +49,7 @@ class ValueMeta(PromptedObjMeta):
             n.converter = "{subcls._converter_name()}",
             n.default = "{subcls.default}",
             n.example_prompt = "{subcls.example_prompt}",
-            n.prompt_embed = "{subcls.prompt_embedding().tolist()}"
+            n.prompt_embed = {subcls.prompt_embedding().tolist()}
         """
     # endregion
 

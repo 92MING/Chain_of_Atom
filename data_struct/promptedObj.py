@@ -30,13 +30,14 @@ class PromptedObjMeta(type, metaclass=PromptedObjMetaMeta):
     INIT_PRIORITY:int = 0
     '''Override this to determine the priority of executing the initialization cyphers. The larger the later.'''
 
-    _SUBCLS_DICT = None
     @classmethod
     def cls_dict(cls):
         '''dict for saving all subclass of this class'''
-        if cls._SUBCLS_DICT is None:
-            cls._SUBCLS_DICT = GetOrAddGlobalValue(f'_{cls.BASE_CLS_NAME}_SUBCLS_DICT', dict())
-        return cls._SUBCLS_DICT
+        return GetOrAddGlobalValue(f'_{cls.BASE_CLS_NAME}_SUBCLS_DICT', dict())
+    @classmethod
+    def cls_id_dict(cls):
+        '''dict saving all subclass and use their id as key'''
+        return GetOrAddGlobalValue(f'_{cls.BASE_CLS_NAME}_SUBCLS_ID_DICT', dict())
     @classmethod
     def subcls_exist_in_kg(cls, subcls_name:str):
         '''check if a subclass exists in knowledge graph. You can also override this to customize the checking method.'''
@@ -124,6 +125,17 @@ class PromptedObj:
         if cls._kg_id is None and cls.cls_name() != 'PromptedObj':
             cls._kg_id = neo4j_session().run(f'match (n:{cls.BASE_CLS_NAME}) where n.name="{cls.cls_name()}" return elementId(n)').single()[0]
         return cls._kg_id
+    @classmethod
+    def find_subcls_byID(cls, id):
+        '''find subclass by id'''
+        cls_id_dict = cls.cls_id_dict()
+        if id in cls_id_dict:
+            return cls_id_dict[id]
+        for subcls in cls.all_subclses():
+            if subcls.kg_id() == id:
+                cls_id_dict[id] = subcls
+                return subcls
+        raise KeyError(f'Cannot find subclass with id {id}')
     @classmethod
     def prompt_embedding(cls)->np.array:
         '''return the embedding vector of the prompt'''
