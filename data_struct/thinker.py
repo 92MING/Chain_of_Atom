@@ -9,7 +9,9 @@ from data_struct.atom import *
 from data_struct.value import *
 from data_struct.converter import IntListConverter
 from typing import Union
+from data_struct.tree import Node, Tree
 from utils.neo4j_utils import neo4j_session
+
 
 class Thinker:
 
@@ -22,8 +24,8 @@ class Thinker:
         '''get the strings quoted by []. Otherwise return None'''
         return re.findall(r'.*?\[(.*?)\].*?', s)
 
-    def _init_think_prompt(self, question: str):
-        return f"""
+    def _init_think_output(self, question: str):
+        prompt = f"""
         Suppose you are solving a problem using 'Chain of Thoughts' method, and you are now thinking the final outputs of the problem,
         which means that you are now reaching the solution of the problem.
         No calculation is required in this task. You are required to identify what types of final outputs should be
@@ -36,9 +38,12 @@ class Thinker:
         ------------------
         Now, think about the final output of this question. You do
         Q: {question}
+        Note that no explanation are required, just the final output is needed.
         """
-    # endregion
-    def _step_think_prompt(self, question: str, situation: int, finishing_chain: list[Atom] = None):
+        ret = get_chat(prompt, model=self.model, temperature=self.temperature)
+        return self._get_quoted_strs(ret)[0]
+
+    def _step_think_atom(self, question: str, situation: int, finishing_chain: list[Atom] = None):
         prompt = f"""
         Suppose you are solving a problem using 'Chain of Thoughts' method, and you will face two situation according the question stated.
         For the first situation (1), you have come to the last step of the chain(It means after this step, you will get the answer).
@@ -87,7 +92,7 @@ class Thinker:
         Q: {question}
         Situation: {situation}
         """
-        if situation==2:
+        if situation == 2:
             prompt += "Groups of Finishing Chains: "
             for chain in finishing_chain:
                 prompt += f"[{chain.prompt}]["
@@ -97,9 +102,10 @@ class Thinker:
                         prompt += ","
                 prompt += "]<-"
             prompt += "?"
-        return prompt
+        ret = get_chat(prompt, model=self.model, temperature=self.temperature)
+        return self._get_quoted_strs(ret)
 
-    def information_match(self, problem: str, input_prompts: list):
+    def _information_match(self, problem: str, input_prompts: list):
         check = ""
         for i, input_prompt in enumerate(input_prompts):
             check += f"{i+1}. {input_prompt} "
@@ -152,63 +158,105 @@ class Thinker:
         for index in sorted(ret, reverse=True):
             del input_prompts[index]
 
-    def create_promptedobject(self,promptetype: Union[Atom,Value], prompt_: str, sub_cls_name: str):
-        class TempPromptedObject(promptetype):
-            prompt = prompt_
+    def _create_promptedobject(self, promptetype: Union[Atom,Value], prompt_: str, sub_cls_name: str, input_value: list, output_value: list):
+        if promptetype == Atom:
+            class TempPromptedObject(promptetype):
+                prompt = prompt_
+                inputs = tuple(*input_value)
+                outputs = tuple(*output_value)
+        elif promptetype == Value:
+            class TempPromptedObject(promptetype):
+                prompt = prompt_
+        else:
+            return None
 
         TempPromptedObject.__qualname__ = sub_cls_name
-        TempPromptedObject.prompt_embedding()
-        TempPromptedObject.kg_id()
+        TempPromptedObject.cls_dict()[sub_cls_name] = TempPromptedObject
         return TempPromptedObject
 
+    # endregion
 
-    def outputvalue_to_atomprompt(self, value_prompt: str):
+    def thinking_process_ipo(self, question: str):
 
-        pass
+        '''
+        Explain on some variables in this function
+        output_value: usually the output_value of a atom
+        input_value : usually the input_value of a atom
+        output_prompt: prompt of the output of a atom given by chat_model
+        input_prompt(s): prompt of the input of a atom given by chat_model
+        atom_prompt: prompt of the atom given by chat_model
+        output_embed: embedding form of the prompt
+        input_embed(s): embedding form of the prompt
+        atom_embed: embedding form of the prompt
+        thought: PromptedObj that will be used in solving this problem
+        lists_of_thought: the list of storing unprocessed thought
+        chains_of_thought: Representing all the PromptedObj involved in this problem
+        list_of_atom: the descending list of atoms that will be involved in this problem
+        '''
 
-    def atomprompt_to_inputvalue(self, atom_prompt: str):
-        pass
-
-    def thinking_process_IPO(self, question: str):
+        lists_of_thought: list[Node,...] = []
+        lists_of_value: list[Value,...] = []
         print("start thinking Q:", question)
-        ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
-        output = self._get_quoted_strs(ret)[0]
+        output = self._init_think_prompt(question)
         print("AI thinks the final output is:", output)
         output_embed = get_embedding_vector(output).tolist()
-        ret = session.query_vector_index(f'{Value.BASE_CLS_NAME}_INDEX',1,output_embed)
-        values: list[Value,...] = []
-        if ret[0][1]>=0.9:
+        ret = session.query_vector_index(f'{Value.BASE_CLS_NAME}_INDEX', 1, output_embed)
+
+        if ret[0][1] >= 0.9:
             output_value = ret[0][0]
-            values.append(output_value)
+
         else:
-            output_value = self.create_promptedobject(Value,output,output)
-            values.append(output_value)
+            output_value = self.create_promptedobject(Value, output, output)
+            cypher = output.create_subcls_cyphers()
+            session.run(cypher)
+            output_value.kg_id()
 
-        simple_tree = []
-        self.information_match(question,values)
-        while len(values)>0:
-            value = values.pop(0)
-            linked_atom = session.query_linked_relationship(value.BASE_CLS_NAME,value.cls_name(),'output')
+        # print(output_value.prompt)
+        lists_of_value.append(output_value)
+        thought = Node(output_value)
+        lists_of_thought.append(thought)
+        chains_of_thought = Tree(thought)
+        list_of_atom = []
+        self.information_match(question, lists_of_value)
 
-            if linked_atom is None:
-                if len(simple_tree) ==0: prompt = self._step_think_prompt(question,1)
-                else: prompt = self._step_think_prompt(question,2,simple_tree)
-                ret = get_chat(prompt,model=self.model,temperature=self.temperature)
-                ret = self._get_quoted_strs(ret)
-                linked_atom_prompt = ret[0]
-                input_value_prompts = re.split(r'\s*,\s*', ret[1])
+        while len(lists_of_thought) > 0:
+            value = lists_of_value.pop(0)
+            atom = Atom.cls_dict().get[session.query_linked_relationship(value.BASE_CLS_NAME, value.cls_name(), 'OUTPUT'), None]
 
-                linked_atom = self.create_promptedobject(Atom, linked_atom_prompt, linked_atom_prompt)
-                session.create_relationship(value.BASE_CLS_NAME, value.cls_name(), linked_atom.BASE_CLS_NAME, linked_atom.cls_name(), 'output')
+            if atom is None:
+                if len(list_of_atom) == 0:
+                    [atom_prompt, input_value_prompts] = self._step_think_prompt(question, 1)
+                else:
+                    [atom_prompt, input_value_prompts] = self._step_think_prompt(question, 2, list_of_atom)
+
+                input_value_prompts = re.split(r'\s*,\s*', input_value_prompts)
+
+                input_value_lists = []
                 for input_value_prompt in input_value_prompts:
                     input_value = self.create_promptedobject(Value, input_value_prompt, input_value_prompt)
-                    session.create_relationship(linked_atom.BASE_CLS_NAME, linked_atom.cls_name(), input_value.BASE_CLS_NAME, input_value.cls_name(), 'input')
-                    values.append(input_value)
+                    cypher = input_value.create_subcls_cyphers()
+                    session.run(cypher)
+                    input_value_lists.append(input_value)
+
+                    # new_thought = Node(input_value)
+                    # thought.insert_child(new_thought)
+                    # lists_of_thought.append(new_thought)
+
+                atom = self.create_promptedobject(Atom, atom_prompt, atom_prompt, input_value_lists, [value])
+                cypher = atom.create_subcls_cyphers()
+                session.run(cypher)
+                cypher1 = Atom.build_output_relationship_value(atom)
+                cypher2 = Atom.build_input_relationship_value(atom)
+                session.run(cypher1)
+                session.run(cypher2)
+
             else:
-                input_value = session.query_linked_relationship(linked_atom.BASE_CLS_NAME,linked_atom.cls_name(),'input')
-                if input_value is None:
-                    pass
-            simple_tree.append(linked_atom)
+                input_value_lists = session.query_linked_relationship(atom.BASE_CLS_NAME, atom.cls_name(), 'INPUT')
+                if input_value_lists is not None:
+                    lists_of_value.extend(input_value_lists)
+                else:
+                    raise Exception("Something wrong happen")
+
 
 
         '''
@@ -246,16 +294,16 @@ class Thinker:
         and send out the final ans
         '''
         while not self.Information_match(question, output):
+            pass
 
 
 
-    # def think(self, question:str):
-    #     print("start thinking Q:", question)
-    #     ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
-    #     last_step = self._get_quoted_strs(ret)[0]
-    #     print("AI thinks the last step is:", last_step)
-    #
-    #     self.think_for_possible_func(last_step)
+    def think(self, question:str):
+        print("start thinking Q:", question)
+        ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
+        last_step = self._get_quoted_strs(ret)[0]
+        print("AI thinks the last step is:", last_step)
+        self.think_for_possible_func(last_step)
 
     def think_for_possible_func(self, purpose:str)->Atom:
         print('thinking for a suitable atom...')

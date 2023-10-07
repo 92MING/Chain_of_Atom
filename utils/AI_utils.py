@@ -73,7 +73,7 @@ def count_tokens(text:str)->int:
 from .path_utils import EMBEDDING_CACHE_DB_PATH
 _embedCacheDB = Database(EMBEDDING_CACHE_DB_PATH)
 _embedCacheTable = _embedCacheDB.create_table('embedding_cache', pk=['hash', 'model'],
-                                              columns={'hash':str, 'embedding':bytes, 'model':str},
+                                              columns={'hash': str, 'embedding': bytes, 'model': str},
                                               not_null=('hash', 'embedding'),
                                               if_not_exists=True)
 class EmbedModel(CrossModuleEnum):
@@ -99,7 +99,7 @@ DEFAULT_EMBED_DIMENSION = DEFAULT_EMBED_MODEL.dimension
 def get_embedding_vector(text:str, model=DEFAULT_EMBED_MODEL)->np.ndarray:
     '''Get embedding vector from text (through OpenAI API)'''
     hash = getSHA256Hash_fromString(text)
-    model_name = model.value
+    model_name = model.value[0]
     try: # try to get from cache
         result = _embedCacheTable.get([hash, model_name])
         return np.frombuffer(result['embedding'], dtype=np.float32)
@@ -107,7 +107,7 @@ def get_embedding_vector(text:str, model=DEFAULT_EMBED_MODEL)->np.ndarray:
         if model == EmbedModel.OPENAI:
             v = openai.Embedding.create(input=[text], model='text-embedding-ada-002')['data'][0]['embedding']
             embed = np.array(v, dtype=np.float32)
-            _embedCacheTable.insert({'hash':hash, 'embedding':embed.tobytes()})
+            _embedCacheTable.insert({'hash': hash, 'embedding': embed.tobytes(), 'model': model_name})
         # TODO: add more models
         return embed
 

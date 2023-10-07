@@ -8,8 +8,11 @@ from utils.AI_utils import get_chat
 
 '''TextToEquations Value Input Class'''
 class TextDescribeEquations(Value):
-    prompt = "Shows a short passage describing the problems of sets of equation in real life"
-    example_prompt = "6 apples and a orange cost 18 dollars, 4 apples and a orange cost 14 dollars"
+    prompt = 'Shows a short passage describing the problems of sets of equation in real life'
+    example_prompt = '6 apples and a orange cost 18 dollars, 4 apples and a orange cost 14 dollars'
+    expected_type = str
+    converter = StrConverter
+    default = ''
     @classmethod
     def run(cls, text:str):
         pass
@@ -17,6 +20,10 @@ class TextDescribeEquations(Value):
 '''TextToEquations Value Output Class'''
 class ListOfEquations(Value):
     prompt = "Stores Lists of equations to solve the problems"
+    example_prompt = ['6x+y=18', '4x+y=14']
+    expected_type = list
+    converter = ListConverter
+    default = []
     @classmethod
     def run(cls, formula:list):
         pass

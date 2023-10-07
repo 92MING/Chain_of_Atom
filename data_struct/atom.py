@@ -1,6 +1,6 @@
 import numpy as np
-from promptedObj import PromptedObjMeta, PromptedObj
-from value import Value
+from data_struct.promptedObj import *
+from data_struct.value import Value
 from typing import Tuple, Union
 from utils.AI_utils import get_embedding_vector
 from utils.global_value_utils import GetOrAddGlobalValue
@@ -14,15 +14,6 @@ class AtomMeta(PromptedObjMeta):
 
     @classmethod
     def create_subcls_cyphers(cls, subcls):
-        # TODO: update atom prompt
-        ...
-    @classmethod
-    def update_subcls_cyphers(cls, subcls) ->Union[list, str]:
-        # TODO: update atom prompt
-        ...
-
-    @classmethod
-    def create_subcls_cyphers(cls, subcls: Union['Atom', type]):
         return f"""
         CREATE (n:{cls.BASE_CLS_NAME} 
         {{
@@ -32,7 +23,38 @@ class AtomMeta(PromptedObjMeta):
         }})
         """
 
-class Atom(metaclass=AtomMeta, PromptedObj):
+    @classmethod
+    def update_subcls_cyphers(cls, subcls) ->Union[list, str]:
+        return f"""
+        MATCH (n:{cls.BASE_CLS_NAME} {{name: "{subcls.cls_name()}"}}) 
+        SET 
+            n.prompt = "{subcls.prompt}",
+            n.prompt_embed = "{subcls.prompt_embedding().tolist()}"
+        """
+
+    @classmethod
+    def build_output_relationship_value(cls, subcls):
+        output = subcls.outputs
+        cypher =  f"MATCH (into_node: Value), (out_node: Atom {{name: '{subcls.cls_name()}'}}) WHERE "
+        for i in range(len(output)):
+            cypher += f"into_node.name = '{output[i].cls_name()}'"
+            if i != len(output)-1:
+                cypher += " OR "
+        cypher += " CREATE (out_node)-[:OUTPUT]->(into_node)"
+        return cypher
+
+    @classmethod
+    def build_input_relationship_value(cls, subcls):
+        input = subcls.inputs
+        cypher = f"MATCH (into_node: Atom {{name: '{subcls.cls_name()}'}}), (out_node: Value) WHERE "
+        for i in range(len(input)):
+            cypher += f"out_node.name = '{input[i].cls_name()}'"
+            if i != len(input)-1:
+                cypher += " OR "
+        cypher += " CREATE (out_node)-[:INPUT]->(into_node)"
+        return cypher
+
+class Atom(PromptedObj, metaclass=AtomMeta):
     '''
     Atom is 1 single action with clear param/ result description. It is a basic unit of a step.
     Override this class to define your own atom.

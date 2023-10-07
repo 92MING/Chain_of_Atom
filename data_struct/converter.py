@@ -190,3 +190,16 @@ class StrConverter(Converter):
             return str(value)
         except:
             raise ValueError(f'Cannot convert {value} to str')
+
+class DictConverter(Converter):
+    @classmethod
+    def type(cls):
+        return dict
+    @classmethod
+    def convert(cls, value):
+        if isinstance(value, dict):
+            return value
+        try:
+            return dict(value)
+        except:
+            raise ValueError(f'Cannot convert {value} to dict')

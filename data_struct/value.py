@@ -53,7 +53,7 @@ class ValueMeta(PromptedObjMeta):
         """
     # endregion
 
-class Value(metaclass=ValueMeta, PromptedObj):
+class Value(PromptedObj, metaclass=ValueMeta):
     '''
     Value is the base class of all input/ output params of an atom.
     Note that all Value subclasses should be static classes, with unique subclass name.

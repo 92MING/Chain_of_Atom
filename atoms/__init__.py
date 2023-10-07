@@ -13,11 +13,12 @@ with neo4j_session().begin_transaction() as tx:
     for priority in priority_list:
         for line in _INIT_NODE_CYPHER_LINES[priority]:
             tx.run(line)
+_INIT_NODE_CYPHER_LINES = dict()
 
 # init _kg_id for all PromptedObj
 from data_struct.promptedObj import PromptedObj
 session = neo4j_session()
 for subcls in PromptedObj.all_subclses():
-    subcls.prompt_embedding()
-    if subcls.BASE_CLS_NAME != None:
+    if subcls.BASE_CLS_NAME != None and  subcls.BASE_CLS_NAME != 'Atom' and subcls.BASE_CLS_NAME != 'Value':
+        print(subcls.cls_name())
         subcls.kg_id() # this will init the _kg_id variable

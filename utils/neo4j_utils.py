@@ -116,7 +116,7 @@ class Neo4jSession(Session):
                 return
             else:
                 self.drop_index(name)
-        cypher = f'CALL db.index.vector.createNodeIndex({name}, {label}, {propertyKey}, {vector_dimension}, {similarity_function})'
+        cypher = f'CALL db.index.vector.createNodeIndex("{name}", "{label}", "{propertyKey}", {vector_dimension}, "{similarity_function}")'
         self.run(cypher)
     def query_vector_index(self, name, number, prompt_embed):
         '''
@@ -126,7 +126,7 @@ class Neo4jSession(Session):
         :param prompt_embed: the embedding vector of the prompt want to be searched
         '''
         if self.has_index(name):
-            cypher = f'CALL db.index.vector.queryNodes({name}, {number}, {prompt_embed}) YIELD node AS similarPrompt, score RETURN similarPrompt.name AS cls_name, score'
+            cypher = f'CALL db.index.vector.queryNodes("{name}", {number}, {prompt_embed}) YIELD node AS similarPrompt, score RETURN similarPrompt.name AS cls_name, score'
         records = self.run(cypher)
         return records.values()
 
@@ -142,13 +142,11 @@ class Neo4jSession(Session):
         records = self.run(cypher).single()
         if records is None:
             return None
-        cypher = f'match (:{node_label} {{name: "{node_name}"}}) -[:{relationship}]-(node) return node.prompt'
-        'Assume only single relationship for value-atom-value'
-        records = self.run(cypher).single()
+        cypher = f'match (:{node_label} {{name: "{node_name}"}}) -[:{relationship}]-(node) return node.name AS name
+        records = self.run(cypher).values()
         if records is None:
             return None
-        records = records[0]
-        return records
+        return records['name']
 
     def create_relationship(self, into_node_label: str, into_node_name: str, out_node_label: str, out_node_name: str, relationship: str):
         '''

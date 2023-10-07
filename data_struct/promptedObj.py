@@ -67,7 +67,7 @@ class PromptedObjMeta(type, metaclass=PromptedObjMetaMeta):
     def __new__(self, *args, **kwargs):
         global _CREATE_NODE_CYPHER_LINES, _UPDATE_NODE_CYPHER_LINES
         cls_name = args[0]
-        if cls_name != self.BASE_CLS_NAME and cls_name not in self.cls_dict():
+        if cls_name != self.BASE_CLS_NAME and cls_name not in self.cls_dict() and cls_name!='TempPromptedObject':
             cls:'PromptedObj' = super().__new__(self, *args, **kwargs)
             if not hasattr(cls, 'prompt') or cls.prompt is None:
                 raise Exception(f"{self.BASE_CLS_NAME}'s subclass '{cls_name}' should have a prompt.")
@@ -81,6 +81,12 @@ class PromptedObjMeta(type, metaclass=PromptedObjMetaMeta):
                         _INIT_NODE_CYPHER_LINES[cls.INIT_PRIORITY].append(cyphers)
                     else:
                         _INIT_NODE_CYPHER_LINES[cls.INIT_PRIORITY].extend(self.create_subcls_cyphers(cls))
+                    if self.BASE_CLS_NAME == 'Atom':
+                        cyphers1 = self.build_output_relationship_value(cls)
+                        cyphers2 = self.build_input_relationship_value(cls)
+                        _INIT_NODE_CYPHER_LINES[cls.INIT_PRIORITY].append(cyphers1)
+                        _INIT_NODE_CYPHER_LINES[cls.INIT_PRIORITY].append(cyphers2)
+
                 elif self.subcls_need_update(cls):
                     cyphers = self.update_subcls_cyphers(cls)
                     if isinstance(cyphers, str):
