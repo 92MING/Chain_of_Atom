@@ -14,9 +14,6 @@ class CalculationFormula(Value):
     expected_type = str
     converter = StrConverter
     default = 0
-    @classmethod
-    def run(cls,formula: str):
-        pass
 
 '''CalculateFormula Value Output Class'''
 class CalculationResult(Value):
@@ -25,9 +22,7 @@ class CalculationResult(Value):
     expected_type = float
     converter = FloatConverter
     default = 0
-    @classmethod
-    def run(cls,formula: float):
-        pass
+
 
 class CalculateFormula(Atom):
     inputs = (CalculationFormula,)
@@ -57,25 +52,21 @@ class CalculateFormula(Atom):
 
 '''VerifyFormulaResult Value Input Class'''
 class CalculationFormulaVerify(Value):
-    prompt ="Shows calculation formula to be verified"
-    example_prompt = 'formula: 1+1,result: 2'
+    prompt ="calculation formula to be verified"
+    example_prompt = '1+1=2'
     expected_type = str
     converter = StrConverter
     default = ''
-    @classmethod
-    def run(cls, formula: str,expected_result:float):
-        pass
+
 
 '''VerifyFormulaResult Value Output Class'''
 class VerifyingAnswer(Value):
     prompt = "Shows whether the expected result is equal to the formula"
-    example_prompt = '1+1 is equal to 2, True'
+    example_prompt = 'True'
     expected_type = bool
     converter = BoolConverter
     default = True
-    @classmethod
-    def run(cls,answer: bool):
-        pass
+
 
 class VerifyFormulaResult(Atom):
     inputs = (CalculationFormulaVerify,)
@@ -91,25 +82,21 @@ class VerifyFormulaResult(Atom):
 
 '''Permutations Value Input Class'''
 class PermutationsNumListStorage(Value):
-    prompt = 'Shows a list of number that will undergo Permutations'
-    example_prompt = '[a, b, c]'
+    prompt = 'Stores a list of number that will undergo Permutations'
+    example_prompt = '[1, 2, 3]'
     expected_type = list
     converter = NumListConverter
     default = []
-    @classmethod
-    def run(cls, numlist:list):
-        pass
+
 
 '''Permutations Value Output Class'''
 class PermutationsResultStorage(Value):
-    prompt = 'Shows a list of number after undergoing Permutations'
+    prompt = 'Stores a list of number after undergoing Permutations'
     example_prompt = '[[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]]'
     expected_type = list
     converter = NumListConverter
     default = []
-    @classmethod
-    def run(cls, numlist: list):
-        pass
+
 
 class Permutations(Atom):
     inputs = (PermutationsNumListStorage,)
@@ -127,9 +114,7 @@ class SortOrder (Value):
     expected_type = bool
     converter = BoolConverter
     default = 0
-    @classmethod
-    def run(cls, order:bool, default=False):
-        pass
+
 
 '''Sort Value Input Class'''
 class SortNumListStorage(Value):
@@ -138,9 +123,7 @@ class SortNumListStorage(Value):
     expected_type = list
     converter = NumListConverter
     default = []
-    @classmethod
-    def run(cls, numlist:list):
-        pass
+
 
 '''Sort Value Output Class'''
 class SortedNumListStorage(Value):
@@ -149,9 +132,7 @@ class SortedNumListStorage(Value):
     expected_type = list
     converter = NumListConverter
     default = []
-    @classmethod
-    def run(cls, numlist:list):
-        pass
+
 
 class Sort(Atom):
     inputs = (SortNumListStorage,SortOrder,)
@@ -167,9 +148,7 @@ class EquationStorage(Value):
     expected_type = str
     converter = StrConverter
     default = ''
-    @classmethod
-    def run(cls, formula:str):
-        pass
+
 
 class SolveOneUnknownEquation(Atom):
     inputs = (EquationStorage,)
@@ -189,9 +168,7 @@ class SystemOfEquationsAnswer(Value):
     expected_type = list
     converter = ListConverter
     default = []
-    @classmethod
-    def run(cls,formula: list):
-        pass
+
 
 '''SolveLinearEquations Value Output Class'''
 class CalculationResultForLinearEquation(Value):
@@ -200,9 +177,7 @@ class CalculationResultForLinearEquation(Value):
     expected_type = list
     converter = DictConverter
     default = {}
-    @classmethod
-    def run(cls, answer: dict):
-        pass
+
 
 class SolveLinearEquations(Atom):
     inputs = (SystemOfEquationsAnswer,)

@@ -32,7 +32,7 @@ class Thinker:
 
         e.g.
         ------------------
-        Q: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
+        Q: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What are the prices of the ball and pen?
         A: Final output : [Solution of system of linear equations of this problem].  
         ------------------
         Now, think about the final output of this question. You do
@@ -61,7 +61,7 @@ class Thinker:
         example 1:
         ------------------
         Q: 
-        Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
+        Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What are the price of the ball and pen?
         Situation: 1
         A: Last step : [Solving system of linear equations][System of linear equations]. I should have listed out the equations before solving the last step. After finish the last step, I will get the value of the unknowns.
         ------------------
@@ -120,7 +120,7 @@ class Thinker:
         ------------------
         Q: 
         Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
-        Input Requirement: 1. Shows the system of the linear equation solve the problems. 2. Shows the text for building up systems of linear equation
+        Input Requirement: 1. the system of the linear equation solve the problems. 2. the text for building up systems of linear equation
         
         A: [0,1]
         
@@ -133,7 +133,7 @@ class Thinker:
         example 2:
         Q:
         Problem: using addition/subtraction/multiplication/division, how can we get 24 from 3,4,5,6?
-        Input Requirement: Shows the list of integer to build 24.
+        Input Requirement: the list of integer used to build 24.
         
         A: [1]
         
@@ -155,6 +155,7 @@ class Thinker:
         ret = self._get_quoted_strs(ret)[0]
         ret = IntListConverter(ret)
         for index in sorted(ret, reverse=True):
+            print(f"AI think {input_prompts[index]}, this input value could be fulfilled directly, no extra atom is required for this part")
             del input_prompts[index]
 
     def _create_promptedobject(self, promptetype: Union[Atom,Value], prompt_: str, sub_cls_name: str, input_value: list, output_value: list):
@@ -180,15 +181,15 @@ class Thinker:
         '''
         Explain on some variables in this function
         output_value: usually the output_value of a atom
-        input_value : usually the input_value of a atom
+        input_value(s) : usually the input_value(s) of a atom
         output_prompt: prompt of the output of a atom given by chat_model
-        input_prompt(s): prompt of the input of a atom given by chat_model
+        input_prompt(s): prompt of the input(s) of a atom given by chat_model
         atom_prompt: prompt of the atom given by chat_model
         output_embed: embedding form of the prompt
-        input_embed(s): embedding form of the prompt
-        atom_embed: embedding form of the prompt
+        input_embed(s): embedding form of the prompt(s)
+        atom_embed(s): embedding form of the prompt(s)
         thought: PromptedObj that will be used in solving this problem
-        lists_of_thought: the list of storing unprocessed thought
+        lists_of_thought: the list of storing unprocessed thought (Node of input/output value)
         chains_of_thought: Representing all the PromptedObj involved in this problem
         list_of_atom: the descending list of atoms that will be involved in this problem
         '''
@@ -196,19 +197,17 @@ class Thinker:
         lists_of_thought: list[Node,...] = []
         lists_of_value: list[Value,...] = []
         print("start thinking Q:", question)
-        output = self._init_think_prompt(question)
+        output = self._init_think_output(question)
         print("AI thinks the final output is:", output)
         output_embed = get_embedding_vector(output).tolist()
-        ret = session.query_vector_index(f'{Value.BASE_CLS_NAME}_INDEX', 1, output_embed)
-
-        if ret[0][1] >= 0.9:
-            output_value = ret[0][0]
+        ret = session.query_vector_index(f'{Value.BASE_CLS_NAME}_INDEX', output_embed,3,True,False)
+        if ret[0][0]['score'] >= 0.9:
+            output_value = Value.cls_dict[ret[0]['name']]
 
         else:
             output_value = self.create_promptedobject(Value, output, output)
             cypher = output.create_subcls_cyphers()
             session.run(cypher)
-            output_value.kg_id()
 
         # print(output_value.prompt)
         lists_of_value.append(output_value)
@@ -218,11 +217,13 @@ class Thinker:
         list_of_atom = []
         self.information_match(question, lists_of_value)
 
-        while len(lists_of_thought) > 0:
+        while len(lists_of_value) > 0:
             value = lists_of_value.pop(0)
+            thought = lists_of_thought.pop(0)
             atom = Atom.cls_dict().get[session.query_linked_relationship(value.BASE_CLS_NAME, value.cls_name(), 'OUTPUT'), None]
 
             if atom is None:
+                print("currently, no Atom with output relationship on that output Value")
                 if len(list_of_atom) == 0:
                     [atom_prompt, input_value_prompts] = self._step_think_prompt(question, 1)
                 else:
@@ -230,16 +231,15 @@ class Thinker:
 
                 input_value_prompts = re.split(r'\s*,\s*', input_value_prompts)
 
+                # atom = self.think_for_possible_func(atom_prompt)
+                # TODO:: use think_for_possible_func to search function first
                 input_value_lists = []
+                print("Creating new atom")
                 for input_value_prompt in input_value_prompts:
                     input_value = self.create_promptedobject(Value, input_value_prompt, input_value_prompt)
                     cypher = input_value.create_subcls_cyphers()
                     session.run(cypher)
                     input_value_lists.append(input_value)
-
-                    # new_thought = Node(input_value)
-                    # thought.insert_child(new_thought)
-                    # lists_of_thought.append(new_thought)
 
                 atom = self.create_promptedobject(Atom, atom_prompt, atom_prompt, input_value_lists, [value])
                 cypher = atom.create_subcls_cyphers()
@@ -251,62 +251,38 @@ class Thinker:
 
             else:
                 input_value_lists = session.query_linked_relationship(atom.BASE_CLS_NAME, atom.cls_name(), 'INPUT')
-                if input_value_lists is not None:
-                    lists_of_value.extend(input_value_lists)
-                else:
-                    raise Exception("Something wrong happen")
+                if input_value_lists is None:
+                    raise Exception("Something goes wrong")
 
+            print("AI thinks the atom should be: ", atom.prompt)
+            new_thought = Node(atom)
+            thought.insert_child(new_thought)
+            thought = new_thought
+            print("Input value of this atom should be", end=" ")
+            for input_value in input_value_lists:
+                print(input_value.prompt, end=" ")
+                new_thought = Node(input_value)
+                thought.insert_child(new_thought)
+                lists_of_thought.append(new_thought)
+            print("\n")
+            self._information_match(question, lists_of_value)
 
+        ret = chains_of_thought.run_the_tree()
+        print("AI think the answer should be ", ret)
 
-        '''
-        prototype:
-        use neo4j to search k closest output_value 
-        values = [input/outputs to be check]
-        if (chatgpt think is ok):
-            values.append(output)
-            tree = parent(output) 'later change to KG one'
-        else:
-            output = create_new_output_value in KG
-            values.append(output)
-            tree = parent(output)
-        
-        Information_match(question,values)
-        while len(values): until chatgpt think directly match occur for all value
-            values.pop(0)
-            linked_atom = values.output_linked_atom (search for atom linked with this output in output relationship)
-            if (linked_atom is null):
-                linked_atom = create_new_atom in KG, build relationship for this atom and that output
-                linked_atom->parent = value
-                value->child = linked_atom
-                search for required input atoms existed in KG
-                if (input_atoms not in KG):
-                    inputs_atom = create_new_value in KG, build
-                    values.append(input_atoms)
-            else:
-                linked_atom->parent = value
-                value->child = linked_atom
-                input_atoms = linked_atom.inputs()
-                values.append(intput_atoms)
-    
-        if out the loop -> all oldest input value are found:
-        ask chatgpt to follow the tree structure to solve the problem
-        and send out the final ans
-        '''
-        while not self.Information_match(question, output):
-            pass
+    # def think(self, question:str):
+    #     print("start thinking Q:", question)
+    #     ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
+    #     last_step = self._get_quoted_strs(ret)[0]
+    #     print("AI thinks the last step is:", last_step)
+    #     self.think_for_possible_func(last_step)
 
-    def think(self, question:str):
-        print("start thinking Q:", question)
-        ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
-        last_step = self._get_quoted_strs(ret)[0]
-        print("AI thinks the last step is:", last_step)
-        self.think_for_possible_func(last_step)
-
-    def think_for_possible_func(self, purpose:str)->Atom:
+    def think_for_possible_func(self, purpose:str, outputs: Value)->Atom:
         print('thinking for a suitable atom...')
         possible_atoms = k_similar_atoms(purpose)
-        print('possible atoms:', [atom.atom_name() for atom in possible_atoms])
+        print('possible atoms:', [atom.cls_name() for atom in possible_atoms])
         all_func_prompts = ""
+        outputs_prompts = ','.join([f'{output.prompt}' for output in outputs])
         for j, atom in enumerate(possible_atoms):
             atom_input_prompts = '\n'.join([f'Input {i + 1}: {param.full_prompt}' for i, param in enumerate(atom.inputs)])
             atom_output_prompts = '\n'.join([f'Output {i + 1}: {param.full_prompt}' for i, param in enumerate(atom.outputs)])
@@ -321,7 +297,7 @@ class Thinker:
         Now you are given some functions, which ONE do you think is able for reaching a given purpose's answer DIRECTLY?
         Consider more about the outputs of the functions whether could give you the answer directly.
         If none of them is possible, answer 'no', otherwise answer the function's index. Quote your answer & reason with two '[]'s. 
-        
+
         example 1:
         ------------------
         Function 1:
@@ -333,10 +309,10 @@ class Thinker:
             Input 1: A text (e.g. 'A pen is 10 more expensive than a ball.')
             Input 2: A dictionary of variables (e.g. {{'x': 'pen', 'y': 'ball'}})
             Output 1: An algebraic equation (e.g. 'x = y + 10')
-        Q: Purpose: Find a solution for {{"x-y=1", "x+y=2"}}
+        Q: Purpose: Find a solution for {{"x-y=1", "x+y=2"}} Output: the solution of the system of linear equations
         A: [1]. [Because the output of function 1 is the solution of the linear equation set, which is the answer of the question.]
         ------------------
-        
+
         example 2:
         ------------------
         Function 1:
@@ -348,14 +324,14 @@ class Thinker:
             Input 1: A text (e.g. 'A pen is 10 more expensive than a ball.')
             Input 2: A dictionary of variables (e.g. {{'pen': 'x', 'ball': 'y'}})
             Output 1: An algebraic equation (e.g. 'x = y + 10')
-        Q: Purpose: A pen is 10 more expensive than a ball, and the sum of the price of a pen and a ball is 11. What is the price of the ball?
+        Q: Purpose: A pen is 10 more expensive than a ball, and the sum of the price of a pen and a ball is 11. What is the price of the ball? Output: the price of the ball.
         A: [no]. [No function could be used directly.]
         ------------------
-        
+
         Now, you are given the following funcs and purpose:
         ------------------
         {all_func_prompts}
-        Purpose: {purpose}
+        Purpose: {purpose} Outputs: {outputs_prompts}
         ------------------
         Note that you just need to give out the index of the function(s) and separate them with comma (if multiple).
         """

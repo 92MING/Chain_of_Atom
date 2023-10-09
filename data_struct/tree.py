@@ -22,17 +22,21 @@ class Tree:
         self.head = head
 
     def run_the_tree(self):
-        self.post_order_travel(self.head)
+        return self.post_order_travel(self.head)
 
     def post_order_travel(self, current: Node):
         if len(current.child) == 0:
-            current.promptedobj.run()
+            value_to_be_stored = current.promptedobj.ask_for_input(current.promptedobj.prompt, current.promptedobj.example_prompt)
+            current.promptedobj.input(value_to_be_stored)
 
         else:
-            for child in current.child:
-                self.post_order_travel(child)
-
-            current.promptedobj.run()
+            if current.promptedobj == 'Atom':
+                for child in current.child:
+                    self.post_order_travel(child)
+                current.promptedobj.call()
+                return
+            if current == self.head:
+                return current.value()
 
 
 

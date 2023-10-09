@@ -8,7 +8,7 @@ from utils.AI_utils import get_chat
 
 '''TextToEquations Value Input Class'''
 class TextDescribeEquations(Value):
-    prompt = 'Shows a short passage describing the problems of sets of equation in real life'
+    prompt = 'A short passage describing the problems of sets of equation in real life'
     example_prompt = '6 apples and a orange cost 18 dollars, 4 apples and a orange cost 14 dollars'
     expected_type = str
     converter = StrConverter
@@ -19,7 +19,7 @@ class TextDescribeEquations(Value):
 
 '''TextToEquations Value Output Class'''
 class ListOfEquations(Value):
-    prompt = "Stores Lists of equations to solve the problems"
+    prompt = "Lists of system of linear equation"
     example_prompt = ['6x+y=18', '4x+y=14']
     expected_type = list
     converter = ListConverter

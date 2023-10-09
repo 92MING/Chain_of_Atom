@@ -1,9 +1,10 @@
 from data_struct.converter import Converter
 from data_struct.promptedObj import *
 import numpy as np
-from utils.AI_utils import get_embedding_vector
+from utils.AI_utils import get_embedding_vector, get_chat, ChatModel
 from typing import Callable, Union
 from utils.neo4j_utils import neo4j_session
+import re
 
 class ValueMeta(PromptedObjMeta):
     BASE_CLS_NAME = 'Value'
@@ -151,3 +152,39 @@ class Value(PromptedObj, metaclass=ValueMeta):
             return cls.prompt
         else:
             return f'{cls.prompt} (e.g.:{cls.example_prompt})'
+
+    @classmethod
+    def ask_for_input(cls,question, prompts,example_prompt):
+        '''This only called if it is the bottom'''
+        prompt = f'''
+        You are now playing a simple searching game. Under this game, you are required to extract basic information required in the question.
+        Please give the answer in the format stated. Note that the Output format stated is just a example output or a format to be followed, not necessarily equal to the answer.
+        You are required to answer following the format.
+        Quote the answer with []
+        
+        example 1:
+        ------------------
+        Q:
+        Problem: a medicine A and another medicine B cost 100 dollars, price of a medicine B minus price of a A equal to 50 dollars. What are the prices of A and B?  
+        Information to extract: Sentences describing the problem of system of linear equation.
+        Output format: 6 apples and a orange cost 18 dollars, 4 apples and a orange cost 14 dollars
+        Answer: [a medicine A and another medicine B cost 100 dollars, price of a medicine B minus price of a A equal to 50 dollars]
+        
+        example 2:
+        -----------------
+        Q:
+        Problem: check the following math calculation is correct or not, "1+1=2"
+        Information to extract: the math formula to be verified
+        Output format: 2+3=5
+        Answer: [1+1=2]
+        -----------------
+        
+        Now, think on this searching game.
+        Q:
+        Problem: {question}
+        Information to extract: {prompts}
+        Output format: example_prompt
+        Answer: (Your answer)
+        '''
+        ret = get_chat(prompt,ChatModel.GPT3_5, temperature=0.5)
+        return re.findall(r'.*?\[(.*?)\].*?', ret)
