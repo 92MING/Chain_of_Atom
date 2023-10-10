@@ -61,7 +61,7 @@ class CalculationFormulaVerify(Value):
 
 '''VerifyFormulaResult Value Output Class'''
 class VerifyingAnswer(Value):
-    prompt = "Shows whether the expected result is equal to the formula"
+    prompt = "correctness of the expected result equaling to the formula"
     example_prompt = 'True'
     expected_type = bool
     converter = BoolConverter
@@ -82,7 +82,7 @@ class VerifyFormulaResult(Atom):
 
 '''Permutations Value Input Class'''
 class PermutationsNumListStorage(Value):
-    prompt = 'Stores a list of number that will undergo Permutations'
+    prompt = 'a list of number that will undergo Permutations'
     example_prompt = '[1, 2, 3]'
     expected_type = list
     converter = NumListConverter
@@ -91,7 +91,7 @@ class PermutationsNumListStorage(Value):
 
 '''Permutations Value Output Class'''
 class PermutationsResultStorage(Value):
-    prompt = 'Stores a list of number after undergoing Permutations'
+    prompt = 'a list of number after undergoing Permutations'
     example_prompt = '[[a, b, c], [a, c, b], [b, a, c], [b, c, a], [c, a, b], [c, b, a]]'
     expected_type = list
     converter = NumListConverter
@@ -109,7 +109,7 @@ class Permutations(Atom):
 
 '''Sort Value Input Class'''
 class SortOrder (Value):
-    prompt = 'Shows order of sort'
+    prompt = 'order of sorting'
     example_prompt = "1(ascending)"
     expected_type = bool
     converter = BoolConverter
@@ -118,7 +118,7 @@ class SortOrder (Value):
 
 '''Sort Value Input Class'''
 class SortNumListStorage(Value):
-    prompt = 'Shows a list of number for sorting'
+    prompt = 'a list of number for sorting'
     example_prompt = '[a, b, c]'
     expected_type = list
     converter = NumListConverter
@@ -127,7 +127,7 @@ class SortNumListStorage(Value):
 
 '''Sort Value Output Class'''
 class SortedNumListStorage(Value):
-    prompt = 'Shows a sorted list of number'
+    prompt = 'a sorted list of number'
     example_prompt = '[a, b, c]'
     expected_type = list
     converter = NumListConverter
@@ -142,29 +142,37 @@ class Sort(Atom):
     def run(cls, elements:list, descending:bool=False):
         return sorted(elements, reverse=descending)
 
+'''SolveOneUnknownEquation Value Input Class'''
 class EquationStorage(Value):
-    prompt = 'Shows the equation to solve'
-    example_prompt = 'Store x^2 + 2x + 1 = 0'
+    prompt = 'the equation to solve'
+    example_prompt = 'x^2 + 2x + 1 = 0'
     expected_type = str
     converter = StrConverter
     default = ''
 
+'''SolveOneUnknownEquation Value Output Class'''
+class EquationSolution(Value):
+    prompt = 'the solution of a single unknown equation'
+    example_prompt = '[-1,1]'
+    expected_type = list
+    converter = NumListConverter
+    default = []
 
 class SolveOneUnknownEquation(Atom):
     inputs = (EquationStorage,)
-    outputs = (CalculationResult,)
+    outputs = (EquationSolution,)
     prompt = 'Solve a single unknown equation.'
     @classmethod
     def run(cls, formula: str):
         equation = sympy.parse_expr(formula, transformations=sympy.parsing.sympy_parser.T[:11])
         equation = sympy.sympify(equation)
         ans = sympy.solve(equation)
-        return ans[0]
+        return ans
 
 '''SolveLinearEquations Value Input Class'''
-class SystemOfEquationsAnswer(Value):
-    prompt = "Stores the system of the linear equation"
-    example_prompt = 'Stores [\'8x + 3y− 2z = 9\', \'−4x+ 7y+ 5z = 15\', \'3x + 4y− 12z= 35\']'
+class SystemOfEquationsStoraget(Value):
+    prompt = "the system of the linear equation"
+    example_prompt = '[\'8x + 3y− 2z = 9\', \'−4x+ 7y+ 5z = 15\', \'3x + 4y− 12z= 35\']'
     expected_type = list
     converter = ListConverter
     default = []
@@ -172,15 +180,15 @@ class SystemOfEquationsAnswer(Value):
 
 '''SolveLinearEquations Value Output Class'''
 class CalculationResultForLinearEquation(Value):
-    prompt = "Stores the answer mapping from linear equation"
-    example_prompt = 'Stores mapping {\'x\': 1, \'y\': 2, \'z\': 3}'
-    expected_type = list
+    prompt = "the solution from system of linear equation"
+    example_prompt = '{\'x\': 1, \'y\': 2, \'z\': 3}'
+    expected_type = dict
     converter = DictConverter
     default = {}
 
 
 class SolveLinearEquations(Atom):
-    inputs = (SystemOfEquationsAnswer,)
+    inputs = (SystemOfEquationsStoraget,)
     outputs = (CalculationResultForLinearEquation,)
     prompt = '''Solve a system of linear equation.'''
     @classmethod

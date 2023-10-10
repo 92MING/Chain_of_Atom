@@ -154,7 +154,7 @@ class Value(PromptedObj, metaclass=ValueMeta):
             return f'{cls.prompt} (e.g.:{cls.example_prompt})'
 
     @classmethod
-    def ask_for_input(cls,question, prompts,example_prompt):
+    def ask_for_input(cls,question, prompts, example_prompt):
         '''This only called if it is the bottom'''
         prompt = f'''
         You are now playing a simple searching game. Under this game, you are required to extract basic information required in the question.

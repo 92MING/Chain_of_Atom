@@ -143,10 +143,10 @@ class Neo4jSession(Session):
             cypher = f'CALL db.index.vector.queryNodes("{name}", {limit}, {prompt_embed}) YIELD node, score return apoc.map.setKey(properties(node), "score", score)'
         if return_score and not return_embed:
             index_property_key = self.get_vector_index_property_key(name)
-            cypher = f'CALL db.index.vector.queryNodes("{name}", {limit}, {prompt_embed}) YIELD node, score return apo.map.setKey(apoc.map.removeKeys(properties(node), {index_property_key}), "score", score)'
+            cypher = f'CALL db.index.vector.queryNodes("{name}", {limit}, {prompt_embed}) YIELD node, score return apoc.map.setKey(apoc.map.removeKeys(properties(node), ["{index_property_key}"]), "score", score)'
         if not return_score and not return_embed:
             index_property_key = self.get_vector_index_property_key(name)
-            cypher = f'CALL db.index.vector.queryNodes("{name}", {limit}, {prompt_embed}) YIELD node return apoc.map.removeKeys(properties(node), {index_property_key})'
+            cypher = f'CALL db.index.vector.queryNodes("{name}", {limit}, {prompt_embed}) YIELD node return apoc.map.removeKeys(properties(node), ["{index_property_key}"])'
         records = self.run(cypher)
         return records.values()
 
@@ -166,7 +166,7 @@ class Neo4jSession(Session):
         records = self.run(cypher).values()
         if records is None:
             return None
-        return records['name']
+        return records
 
     def create_relationship(self, into_node_label: str, into_node_name: str, out_node_label: str, out_node_name: str, relationship: str):
         '''

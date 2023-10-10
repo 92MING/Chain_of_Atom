@@ -107,53 +107,73 @@ class Thinker:
     def _information_match(self, problem: str, input_prompts: list):
         check = ""
         for i, input_prompt in enumerate(input_prompts):
-            check += f"{i+1}. {input_prompt} "
+            check += f"{i+1}. {input_prompt.prompt} \n"
         prompt_ = f"""
-        Suppose you are playing a matching game now. 
-        You receive a problem in this game. Under this problems, you can just simply extract some basic information from the problem without any calculation.
-        Alongside you receive a list of input requirements. You are required to determine whether the basic information you extracted can simply fulfil the 
-        requirement one by one. During the matching for basic information and requirements, no logical deduction can be involved.
-        Answer 1 if you think information could successfully match the requirement, else 0.
-        Quote the answer with '[ ]'.
+        Suppose you are playing a extraction game now. 
+        You receive a problem in this game and some information.
+        Under this game, for each information, you have to determine whether this information exists in the problem stated.
+        'Exist' here means that the problem has provided this information.
+        Answer 1 if you think the existence for that information occur, otherwise please answer 0.
+        The information could be multiple, with the number denoted.
+        Quote the answer with '[ ]'. Answer for multiple information should be separated by comma, in the same []
         
+        You must follow example 1 and 2 logic to deal with similar question. 
         example 1:
         ------------------
         Q: 
         Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
-        Input Requirement: 1. the system of the linear equation solve the problems. 2. the text for building up systems of linear equation
+        Information: 
+        1. the system of the linear equation. 
+        2. linear equation in text.
+        3. solution of the system of linear equation
         
-        A: [0,1]
+        Answer : [0,1,0]
         
-        Reason: 
-        1. The problem content just does not directly relate to system of the linear equation. 
-        Only after deductions made on problem, system of linear equation can be built 
-        2. The given problems has given the text information for pen and ball prices. Satisfy the basic requirement
+        Reason:
+        The answer suggest that only information 2 could be extracted.
+        Firstly, this problem provide information about the mathematical equations in the text.
+        For information 1. The equation have NOT existed in the problem, Although there are text about mathematical equation existing in the problem, NO clear mathematical equation, like 4x+5y=10 are provided in this problem.
+        For information 2. The text has existed in the text. "The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball." is the maths equations in text provided in the problem. Therefore 1 is given.
+        For information 3, It is IMPORTANT to notice that Solution of a problem is not existing in the problem. Although, information 3 talks about the solution of the problem, The solution like x=3,y=4 does NOT appear in the problem context.
+        You can also think this for information 3. It is impossible that problem asked has provided the solution in the information given, there must be logical deduction and calculation involved. Therefore, information 3 does NOT appear in the problem.
+        
+        What you can learn from this example is, only the information stated in information 2 exists in the text of the problem.
         ------------------
         
         example 2:
+        ------------------
         Q:
         Problem: using addition/subtraction/multiplication/division, how can we get 24 from 3,4,5,6?
-        Input Requirement: the list of integer used to build 24.
-        
-        A: [1]
+        Information: 
+        1. the list of integer used to build 24.
+        2. The answer of the formula that build 24.
+        Answer : [1,0]
         
         Reason:
-        The problem has given four numbers already, 3,4,5,6. Therefore, this basic information could be extracted to satisfy the requirement.
+        The answer suggested that information 1 could be satisfied.
+        Firstly, this problem focus on using those 4 numbers to construct 24 from the 4 simple addition/substraction/multiplication/division.
+        For information 1. The problem has given four numbers already, 3,4,5,6. Therefore 1 is given.
+        For information 2, No formula that build 24 are shown in the problem text. The information is related to the answer of this problem, but not information on the problem text to be extracted.
         -----------------
         
-        Now, think on this matching game.
+        Now, think on this extraction game.
         Q: 
         Problem: {problem}
-        Input Requirement: {check}
+        Information: 
+        {check}
         
-        A:(Your answer)
+        A:(Your answer) 
+        (Reason)
         -----------------
-        Note that only number 0,1 should be given in your answer. The Reason in the example just explain how the answer is chosen.
         """
 
         ret = get_chat(prompt_,model=self.model,temperature=self.temperature)
-        ret = self._get_quoted_strs(ret)[0]
-        ret = IntListConverter(ret)
+        print(ret)
+        ret = self._get_quoted_strs(ret)
+        print("remove value", ret)
+        ret = NumListConverter.convert(ret)
+        ret = [i for i in range(len(ret)) if ret[i] == 1]
+        print("remove value", ret)
         for index in sorted(ret, reverse=True):
             print(f"AI think {input_prompts[index]}, this input value could be fulfilled directly, no extra atom is required for this part")
             del input_prompts[index]
@@ -191,7 +211,7 @@ class Thinker:
         thought: PromptedObj that will be used in solving this problem
         lists_of_thought: the list of storing unprocessed thought (Node of input/output value)
         chains_of_thought: Representing all the PromptedObj involved in this problem
-        list_of_atom: the descending list of atoms that will be involved in this problem
+        chains_of_atom: the descending list of atoms that will be involved in this problem
         '''
 
         lists_of_thought: list[Node,...] = []
@@ -202,84 +222,107 @@ class Thinker:
         output_embed = get_embedding_vector(output).tolist()
         ret = session.query_vector_index(f'{Value.BASE_CLS_NAME}_INDEX', output_embed,3,True,False)
         if ret[0][0]['score'] >= 0.9:
-            output_value = Value.cls_dict[ret[0]['name']]
+            output_value = Value.cls_dict()[ret[0][0]['name']]
 
         else:
             output_value = self.create_promptedobject(Value, output, output)
             cypher = output.create_subcls_cyphers()
             session.run(cypher)
 
-        # print(output_value.prompt)
+        print(output_value, output_value.prompt)
         lists_of_value.append(output_value)
         thought = Node(output_value)
         lists_of_thought.append(thought)
-        chains_of_thought = Tree(thought)
-        list_of_atom = []
-        self.information_match(question, lists_of_value)
+        chains_of_thought = Tree(question, thought)
+        chains_of_atom = []
+        # TODO:: fix the chains of atom as well as the _step_think_prompt
+        self._information_match(question, lists_of_value)
 
         while len(lists_of_value) > 0:
             value = lists_of_value.pop(0)
+            print('current output_value needed: ', value.prompt)
             thought = lists_of_thought.pop(0)
-            atom = Atom.cls_dict().get[session.query_linked_relationship(value.BASE_CLS_NAME, value.cls_name(), 'OUTPUT'), None]
+            ret = session.query_linked_relationship(value.BASE_CLS_NAME, value.cls_name(), 'OUTPUT')
+            list_of_atom = [Atom.cls_dict()[atom[0]] for atom in ret if atom[0] in Atom.cls_dict().keys()]
+            print("atoms: ", list_of_atom)
 
-            if atom is None:
+            if len(list_of_atom) == 0:
                 print("currently, no Atom with output relationship on that output Value")
-                if len(list_of_atom) == 0:
-                    [atom_prompt, input_value_prompts] = self._step_think_prompt(question, 1)
+                if len(chains_of_atom) == 0:
+                    [atom_prompt, input_value_prompts] = self._step_think_atom(question, 1)
                 else:
-                    [atom_prompt, input_value_prompts] = self._step_think_prompt(question, 2, list_of_atom)
+                    [atom_prompt, input_value_prompts] = self._step_think_atom(question, 2, chains_of_atom)
 
-                input_value_prompts = re.split(r'\s*,\s*', input_value_prompts)
+                atom = self.think_for_possible_func(atom_prompt, [value], False)
 
-                # atom = self.think_for_possible_func(atom_prompt)
-                # TODO:: use think_for_possible_func to search function first
-                input_value_lists = []
-                print("Creating new atom")
-                for input_value_prompt in input_value_prompts:
-                    input_value = self.create_promptedobject(Value, input_value_prompt, input_value_prompt)
-                    cypher = input_value.create_subcls_cyphers()
+                if atom is None:
+                    input_value_prompts = re.split(r'\s*,\s*', input_value_prompts)
+
+                    input_value_lists = []
+                    print(f"Creating new atom with {atom_prompt}")
+                    for input_value_prompt in input_value_prompts:
+                        input_value = self.create_promptedobject(Value, input_value_prompt, input_value_prompt)
+                        cypher = input_value.create_subcls_cyphers()
+                        session.run(cypher)
+                        input_value_lists.append(input_value)
+
+                    atom = self.create_promptedobject(Atom, atom_prompt, atom_prompt, input_value_lists, [value])
+                    cypher = atom.create_subcls_cyphers()
                     session.run(cypher)
-                    input_value_lists.append(input_value)
+                    cypher1 = Atom.build_output_relationship_value(atom)
+                    cypher2 = Atom.build_input_relationship_value(atom)
+                    session.run(cypher1)
+                    session.run(cypher2)
 
-                atom = self.create_promptedobject(Atom, atom_prompt, atom_prompt, input_value_lists, [value])
-                cypher = atom.create_subcls_cyphers()
-                session.run(cypher)
-                cypher1 = Atom.build_output_relationship_value(atom)
-                cypher2 = Atom.build_input_relationship_value(atom)
-                session.run(cypher1)
-                session.run(cypher2)
+                else:
+                    session.create_relationship('Value',value,'Atom',atom,'OUTPUT')
+                    input_value_lists = session.query_linked_relationship(atom.BASE_CLS_NAME, atom.cls_name(), 'INPUT')
+                    if input_value_lists is None:
+                        raise Exception("Something goes wrong(input_value)")
+                    else:
+                        print(input_value_lists)
+                        input_value_lists = [Value.cls_dict()[input_value[0]] for input_value in input_value_lists]
 
             else:
+                if len(chains_of_atom) == 0:
+                    [atom_prompt, input_value_prompts] = self._step_think_atom(question, 1)
+                else:
+                    [atom_prompt, input_value_prompts] = self._step_think_atom(question, 2, chains_of_atom)
+                atom = self.think_for_possible_func(atom_prompt, [value], True, list_of_atom)
+                if atom is None:
+                    raise Exception("Something goes wrong(atom)")
                 input_value_lists = session.query_linked_relationship(atom.BASE_CLS_NAME, atom.cls_name(), 'INPUT')
                 if input_value_lists is None:
-                    raise Exception("Something goes wrong")
+                    raise Exception("Something goes wrong(input_value)")
+                else:
+                    print(input_value_lists)
+                    input_value_lists = [Value.cls_dict()[input_value[0]] for input_value in input_value_lists]
 
-            print("AI thinks the atom should be: ", atom.prompt)
+            print("Therefore, atom should be: ", atom.prompt)
+            chains_of_atom.append(atom)
             new_thought = Node(atom)
             thought.insert_child(new_thought)
             thought = new_thought
             print("Input value of this atom should be", end=" ")
             for input_value in input_value_lists:
                 print(input_value.prompt, end=" ")
+                lists_of_value.append(input_value)
                 new_thought = Node(input_value)
                 thought.insert_child(new_thought)
                 lists_of_thought.append(new_thought)
-            print("\n")
+            print("")
             self._information_match(question, lists_of_value)
 
         ret = chains_of_thought.run_the_tree()
-        print("AI think the answer should be ", ret)
+        print("AI think the answer should be: ", ret)
 
-    # def think(self, question:str):
-    #     print("start thinking Q:", question)
-    #     ret = get_chat(self._init_think_prompt(question), model=self.model, temperature=self.temperature)
-    #     last_step = self._get_quoted_strs(ret)[0]
-    #     print("AI thinks the last step is:", last_step)
-    #     self.think_for_possible_func(last_step)
-
-    def think_for_possible_func(self, purpose:str, outputs: Value)->Atom:
-        print('thinking for a suitable atom...')
-        possible_atoms = k_similar_atoms(purpose)
+    def think_for_possible_func(self, purpose:str, outputs, linked: True, lists_atom:[Atom,...] =[])->Atom:
+        if linked:
+            print('thinking for a suitable atom in linked_relationship...')
+            possible_atoms = lists_atom
+        else:
+            print('thinking for a suitable atom...')
+            possible_atoms = k_similar_atoms(purpose)
         print('possible atoms:', [atom.cls_name() for atom in possible_atoms])
         all_func_prompts = ""
         outputs_prompts = ','.join([f'{output.prompt}' for output in outputs])
@@ -295,7 +338,7 @@ class Thinker:
                     """
         prompt = f"""
         Now you are given some functions, which ONE do you think is able for reaching a given purpose's answer DIRECTLY?
-        Consider more about the outputs of the functions whether could give you the answer directly.
+        Consider more about the outputs of the functions whether could give you the answer directly. Note that a function may have many outputs, if the output required having inside the function outputs lists, then that function also could be chosen as one of the best.
         If none of them is possible, answer 'no', otherwise answer the function's index. Quote your answer & reason with two '[]'s. 
 
         example 1:
@@ -333,7 +376,7 @@ class Thinker:
         {all_func_prompts}
         Purpose: {purpose} Outputs: {outputs_prompts}
         ------------------
-        Note that you just need to give out the index of the function(s) and separate them with comma (if multiple).
+        Note that you just need to give out the index of the function.
         """
         ret = self._get_quoted_strs(get_chat(prompt, model=self.model, temperature=self.temperature).strip())
         if len(ret)>1:
@@ -345,7 +388,7 @@ class Thinker:
             return None
         else:
             atom = possible_atoms[IntConverter.convert(ans) - 1]
-            print(f"AI thinks the function is: {atom.atom_name()}. "
+            print(f"AI thinks the function is: {atom.cls_name()}. "
                   f"Because: {reason}")
             return atom
 
