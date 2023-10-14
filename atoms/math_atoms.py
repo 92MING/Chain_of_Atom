@@ -171,7 +171,7 @@ class SolveOneUnknownEquation(Atom):
 
 '''SolveLinearEquations Value Input Class'''
 class SystemOfEquationsStoraget(Value):
-    prompt = "the system of the linear equation"
+    prompt = "the system of the linear equation in mathematical format"
     example_prompt = '[\'8x + 3y− 2z = 9\', \'−4x+ 7y+ 5z = 15\', \'3x + 4y− 12z= 35\']'
     expected_type = list
     converter = ListConverter
@@ -180,7 +180,7 @@ class SystemOfEquationsStoraget(Value):
 
 '''SolveLinearEquations Value Output Class'''
 class CalculationResultForLinearEquation(Value):
-    prompt = "the solution from system of linear equation"
+    prompt = "the solution of system of linear equation"
     example_prompt = '{\'x\': 1, \'y\': 2, \'z\': 3}'
     expected_type = dict
     converter = DictConverter

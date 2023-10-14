@@ -80,11 +80,21 @@ class Atom(PromptedObj, metaclass=AtomMeta):
     def outputVals(cls):
         '''Get the outputted values of this atom. Note that "call" method should be called in advance.'''
         return tuple(val.value() for val in cls.outputs)
+
     @classmethod
     def output_prompt_embeds(cls):
         '''Get the prompt embed of each param this atom. '''
         return tuple(val.prompt_embed() for val in cls.outputs)
 
+    # region override
+    @classmethod
+    def kg_id(cls):
+        '''override the original kg_id method to return the merged value node in some cases'''
+        if cls._kg_id is None and cls.cls_name() not in ['Atom',',PromptedObj']:
+            node = neo4j_session().run(f'match (n:{cls.BASE_CLS_NAME}) where n.name="{cls.cls_name()}" return elementId(n)').single()
+            cls._kg_id = node[0]
+        return cls._kg_id
+    # endregion
     @classmethod
     def call(cls, *values):
         '''
@@ -130,4 +140,5 @@ def k_similar_atoms(prompt:str, k=5):
     prompt_embed = get_embedding_vector(prompt)
     cypher = f'CALL db.index.vector.queryNodes("Atom_INDEX",{k},{prompt_embed.tolist()}) YIELD node return elementId(node)'
     atom_ids = neo4j_session().run(cypher).data()
+    print(atom_ids)
     return [Atom.find_subcls_byID(atom_id['elementId(node)']) for atom_id in atom_ids]

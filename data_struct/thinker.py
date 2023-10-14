@@ -9,6 +9,7 @@ from data_struct.value import *
 from data_struct.converter import IntListConverter
 from typing import Union
 from data_struct.tree import Node, Tree
+import copy
 from utils.neo4j_utils import neo4j_session
 
 
@@ -110,50 +111,58 @@ class Thinker:
             check += f"{i+1}. {input_prompt.prompt} \n"
         prompt_ = f"""
         Suppose you are playing a extraction game now. 
-        You receive a problem in this game and some information.
-        Under this game, for each information, you have to determine whether this information exists in the problem stated.
-        'Exist' here means that the problem has provided this information.
-        Answer 1 if you think the existence for that information occur, otherwise please answer 0.
-        The information could be multiple, with the number denoted.
-        Quote the answer with '[ ]'. Answer for multiple information should be separated by comma, in the same []
+        You receive a problem in this game and some searching-information.
+        For the problem given, it could be divided into two part, one is information part of the problem, one is question part of the problem. 
+        Information part include the background of the problem mentioned. Question part are focusing on the question this problem would like to ask.
+        You only need to focus on the information part.
+        for each searching-information, you have to determine whether this searching-information exists in the information part of the problem stated.
+        'Exist' here means that the information part of the problem provided or stated this searching-information.
+        So, the procedure of this game is firstly breaking the whole problem into information and question parts and only focus on the information part. Secondly, you have to determine whether the searching information exists in the information part of the problem/ 
+        Answer 1 if you think the existence for that searching-information occur, otherwise please answer 0.
+        The searching-information could be multiple, with the number denoted.
+        Quote the answer with '[ ]'. Answer for multiple searching-information should be separated by comma, in the same '[ ]'.
         
-        You must follow example 1 and 2 logic to deal with similar question. 
+        Example 1 and 2 illustrate how 'Exist' mean in this game.
         example 1:
         ------------------
         Q: 
         Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
-        Information: 
-        1. the system of the linear equation. 
-        2. linear equation in text.
+        Searching-information: 
+        1. the system of the linear equation in mathematical format. 
+        2. mathematics equations in text format.
         3. solution of the system of linear equation
         
         Answer : [0,1,0]
         
         Reason:
-        The answer suggest that only information 2 could be extracted.
-        Firstly, this problem provide information about the mathematical equations in the text.
-        For information 1. The equation have NOT existed in the problem, Although there are text about mathematical equation existing in the problem, NO clear mathematical equation, like 4x+5y=10 are provided in this problem.
-        For information 2. The text has existed in the text. "The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball." is the maths equations in text provided in the problem. Therefore 1 is given.
-        For information 3, It is IMPORTANT to notice that Solution of a problem is not existing in the problem. Although, information 3 talks about the solution of the problem, The solution like x=3,y=4 does NOT appear in the problem context.
-        You can also think this for information 3. It is impossible that problem asked has provided the solution in the information given, there must be logical deduction and calculation involved. Therefore, information 3 does NOT appear in the problem.
+        The answer suggest that only searching-information 2 existed.
+        Firstly, this problem could be broken into two parts, 
+        for the information part:  "The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball."
+        for the question part: "What is the price of the ball?"
         
-        What you can learn from this example is, only the information stated in information 2 exists in the text of the problem.
+        For Searching-information 1. The system of linear equations in MATHEMATICAL format have NOT existed in the information part of the problem. mathematical equations, for example, '4x+5y=10/6x-7y=20' are NOT shown in this problem. Therefore 1 does NOT exist.
+        For Searching-information 2. The text of mathematics equations are existed in the information part of the problem. "The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball." is the mathematical equations in TEXT shown in the information part. Therefore 2 is given.
+        For Searching-information 3, It is IMPORTANT to notice that solution of a problem is not existing in the information part. The solution of the equation are related to the answer of this problem which is needed to build up from the information given but not existed in that. Therefore, 3 does NOT exist.
+        
         ------------------
         
         example 2:
         ------------------
         Q:
         Problem: using addition/subtraction/multiplication/division, how can we get 24 from 3,4,5,6?
-        Information: 
+        Searching-Information: 
         1. the list of integer used to build 24.
         2. The answer of the formula that build 24.
         Answer : [1,0]
         
         Reason:
-        The answer suggested that information 1 could be satisfied.
-        Firstly, this problem focus on using those 4 numbers to construct 24 from the 4 simple addition/substraction/multiplication/division.
-        For information 1. The problem has given four numbers already, 3,4,5,6. Therefore 1 is given.
-        For information 2, No formula that build 24 are shown in the problem text. The information is related to the answer of this problem, but not information on the problem text to be extracted.
+        The answer suggested that information 1 exists.
+        Firstly, this problem could be broken into two parts.
+        for the information part, "Using addition/subtraction/multiplication/division", "3,4,5,6"
+        for the question part, "how to get 24?"
+        
+        For Searching-information 1. The information part has given four numbers already, "3,4,5,6". Therefore 1 is given.
+        For Searching-information 2, No formula that build 24 are shown in the information part. This searching-information is related to the answer of this problem which is needed to build up by hand, but not existing in the given information of the problem.
         -----------------
         
         Now, think on this extraction game.
@@ -168,12 +177,9 @@ class Thinker:
         """
 
         ret = get_chat(prompt_,model=self.model,temperature=self.temperature)
-        print(ret)
         ret = self._get_quoted_strs(ret)
-        print("remove value", ret)
         ret = NumListConverter.convert(ret)
         ret = [i for i in range(len(ret)) if ret[i] == 1]
-        print("remove value", ret)
         for index in sorted(ret, reverse=True):
             print(f"AI think {input_prompts[index]}, this input value could be fulfilled directly, no extra atom is required for this part")
             del input_prompts[index]
@@ -269,13 +275,13 @@ class Thinker:
                     atom = self.create_promptedobject(Atom, atom_prompt, atom_prompt, input_value_lists, [value])
                     cypher = atom.create_subcls_cyphers()
                     session.run(cypher)
-                    cypher1 = Atom.build_output_relationship_value(atom)
-                    cypher2 = Atom.build_input_relationship_value(atom)
+                    cypher1 = atom.build_output_relationship_value()
+                    cypher2 = atom.build_input_relationship_value()
                     session.run(cypher1)
                     session.run(cypher2)
 
                 else:
-                    session.create_relationship('Value',value,'Atom',atom,'OUTPUT')
+                    session.create_relationship('Value',value.cls_name(),'Atom',atom.cls_name(),'OUTPUT')
                     input_value_lists = session.query_linked_relationship(atom.BASE_CLS_NAME, atom.cls_name(), 'INPUT')
                     if input_value_lists is None:
                         raise Exception("Something goes wrong(input_value)")
@@ -301,14 +307,21 @@ class Thinker:
             print("Therefore, atom should be: ", atom.prompt)
             chains_of_atom.append(atom)
             new_thought = Node(atom)
-            thought.insert_child(new_thought)
-            thought = new_thought
+            print(thought.promptedobj, thought.promptedobj.BASE_CLS_NAME, thought.child_print())
+            print(new_thought.promptedobj, new_thought.promptedobj.BASE_CLS_NAME, new_thought.child_print())
+
+            thought.insert_child(children=new_thought)
+            print('----------------------------')
+            print(thought.promptedobj, thought.promptedobj.BASE_CLS_NAME, thought.child_print())
+            thought = copy.deepcopy(new_thought)
+            print(new_thought.promptedobj, new_thought.promptedobj.BASE_CLS_NAME, new_thought.child_print())
             print("Input value of this atom should be", end=" ")
             for input_value in input_value_lists:
                 print(input_value.prompt, end=" ")
                 lists_of_value.append(input_value)
                 new_thought = Node(input_value)
-                thought.insert_child(new_thought)
+                thought.insert_child(children=new_thought)
+                print(thought.promptedobj,thought.promptedobj.BASE_CLS_NAME,thought.child_print())
                 lists_of_thought.append(new_thought)
             print("")
             self._information_match(question, lists_of_value)

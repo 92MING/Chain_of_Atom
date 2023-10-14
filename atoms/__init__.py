@@ -19,6 +19,6 @@ _INIT_NODE_CYPHER_LINES = dict()
 from data_struct.promptedObj import PromptedObj
 session = neo4j_session()
 for subcls in PromptedObj.all_subclses():
-    if subcls.BASE_CLS_NAME != None and  subcls.BASE_CLS_NAME != 'Atom' and subcls.BASE_CLS_NAME != 'Value':
-        print(subcls.cls_name())
-        subcls.kg_id() # this will init the _kg_id variable
+    if subcls.BASE_CLS_NAME != None:
+        for subsubcls in subcls.all_subclses():
+            subsubcls.kg_id() # this will init the _kg_id variable

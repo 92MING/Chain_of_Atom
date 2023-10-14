@@ -5,9 +5,9 @@ from collections import deque
 
 
 class Node:
-    def __init__(self, promptedobj: Union[Value,Atom], children: list['Node',...] = []):
+    def __init__(self, promptedobj: Union[Value,Atom], children: list = []):
         self.promptedobj = promptedobj
-        self.child: list[Node,...] = children
+        self.child: list[Node, ...] = children
 
     def insert_child(self, children):
         if isinstance(children, list):
@@ -15,6 +15,10 @@ class Node:
         else:
             if children is not None:
                 self.child.append(children)
+        # print(self.child)
+
+    def child_print(self):
+        return [child.promptedobj for child in self.child]
 
 
 class Tree:
@@ -26,6 +30,7 @@ class Tree:
         return self.post_order_travel(self.head)
 
     def post_order_travel(self, current: Node):
+        print(current.promptedobj.cls_name())
         if len(current.child) == 0:
             value_to_be_stored = current.promptedobj.ask_for_input(self.question, current.promptedobj.prompt, current.promptedobj.example_prompt)
             current.promptedobj.input(value_to_be_stored)

@@ -183,8 +183,8 @@ class Value(PromptedObj, metaclass=ValueMeta):
         Q:
         Problem: {question}
         Information to extract: {prompts}
-        Output format: example_prompt
+        Output format: {example_prompt}
         Answer: (Your answer)
         '''
-        ret = get_chat(prompt,ChatModel.GPT3_5, temperature=0.5)
+        ret = get_chat(prompt, ChatModel.GPT3_5, temperature=0.5)
         return re.findall(r'.*?\[(.*?)\].*?', ret)
