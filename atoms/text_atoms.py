@@ -8,7 +8,7 @@ from utils.AI_utils import get_chat
 
 '''TextToEquations Value Input Class'''
 class TextDescribeEquations(Value):
-    prompt = 'Text information of some mathematical equations'
+    prompt = 'Text format of some mathematical equations'
     example_prompt = '6 apples and a orange cost 18 dollars, 4 apples and a orange cost 14 dollars'
     expected_type = str
     converter = StrConverter
@@ -39,6 +39,7 @@ class TextToEquations(Atom):
         Now you are exposed to a real life problem on systems of linear equation.
         You are given text of some mathematical linear equation
         Try to convert the text problem into mathematical equation.
+        Please quotes the answer with '[ ]'
         
         e.g.
         ------------------
@@ -46,22 +47,23 @@ class TextToEquations(Atom):
         Solve the maths problem, the prices of apple times 6 plus the prices of the orange equal 18 dollars 
         and the prices of apple times 4 plus the prices of orange equal to 14 dollars, what are the prices of apple and orange?
         
-        Answer:
-        "6a+b=18, 4a+b=14"
+        Answer: ['6a+b=18', '4a+b=14']
         -----------------
         Under previous example, a and b are used to present the variable of prices of apple and orange respectively
         Now, you are given the following funcs and purpose:
         ------------------
         Question:
         {text}
-        A: (your answer)
+        Answer: (your answer)
         ------------------
         Note that you just need to give out the sets of equations in above format, no explains are required.
         """
         ret = get_chat(prompt_).strip()
-        ret = ret.replace('"', '')
+        ret = re.findall(r'.*?\[(.*?)\].*?', ret)
+        ret = ret[0]
         if ',' in ret:
             ret = re.split(r'\s*,\s*', ret)
+            ret = [rett[1:len(rett)-1] for rett in ret]
         else:
             ret = [ret]
         return ret

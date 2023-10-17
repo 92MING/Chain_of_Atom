@@ -9,7 +9,7 @@ from utils.AI_utils import get_chat
 
 '''CalculateFormula Value Input Class'''
 class CalculationFormula(Value):
-    prompt = "mathematics formula to be calculated"
+    prompt = "arithmetic question to be calculated"
     example_prompt = '1+1'
     expected_type = str
     converter = StrConverter
@@ -17,7 +17,7 @@ class CalculationFormula(Value):
 
 '''CalculateFormula Value Output Class'''
 class CalculationResult(Value):
-    prompt = "calculation Result of a formula"
+    prompt = "calculation Result of a arithmetic question"
     example_prompt = '0'
     expected_type = float
     converter = FloatConverter
@@ -27,7 +27,7 @@ class CalculationResult(Value):
 class CalculateFormula(Atom):
     inputs = (CalculationFormula,)
     outputs = (CalculationResult,)
-    prompt = 'Calculate a math formula and get the result.'
+    prompt = 'Calculate a arithmetic question and get the result.'
     @classmethod
     def run(cls, formula:str):
         _replace_dict = {

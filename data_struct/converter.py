@@ -199,7 +199,10 @@ class DictConverter(Converter):
     def convert(cls, value):
         if isinstance(value, dict):
             return value
+        if isinstance(value, str):
+            pass
         try:
             return dict(value)
         except:
             raise ValueError(f'Cannot convert {value} to dict')
+

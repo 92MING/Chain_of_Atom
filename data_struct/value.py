@@ -157,34 +157,51 @@ class Value(PromptedObj, metaclass=ValueMeta):
     def ask_for_input(cls,question, prompts, example_prompt):
         '''This only called if it is the bottom'''
         prompt = f'''
-        You are now playing a simple searching game. Under this game, you are required to extract basic information required in the question.
-        Please give the answer in the format stated. Note that the Output format stated is just a example output or a format to be followed, not necessarily equal to the answer.
+        You are now playing a simple searching game. Under this game, you are required to extract information required in the question.
+        Please give the answer in the format stated. Note that the Output format stated is just a answering format to be followed, the information extracted are not necessarily equal to  the content in output format.
         You are required to answer following the format.
-        Quote the answer with []
+        However, sometime you may think it is impossible to extract the information stated from the problem.  You may answer no.
+        Quote the answer with [ ]
         
         example 1:
         ------------------
-        Q:
         Problem: a medicine A and another medicine B cost 100 dollars, price of a medicine B minus price of a A equal to 50 dollars. What are the prices of A and B?  
         Information to extract: Sentences describing the problem of system of linear equation.
         Output format: 6 apples and a orange cost 18 dollars, 4 apples and a orange cost 14 dollars
-        Answer: [a medicine A and another medicine B cost 100 dollars, price of a medicine B minus price of a A equal to 50 dollars]
+        Answer: [a medicine A and another medicine B cost 100 dollars, price of a medicine B minus price of a A equal to 50 dollars], [Because there are some text about mathematical equations and could be constructed as system of linear equations]
         
         example 2:
         -----------------
-        Q:
         Problem: check the following math calculation is correct or not, "1+1=2"
         Information to extract: the math formula to be verified
         Output format: 2+3=5
-        Answer: [1+1=2]
+        Answer: [1+1=2], [the math formula to be verified are shown in problem, i.e. "1+1=2"]
+        -----------------
+        
+        example 3:
+        -----------------
+        Problem: "The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball."
+        Information to extract: the system of linear equation
+        Output format: 6x+4y = 20, 5x+5y = 21
+        Answer: [no], [only some text about the relationship of pen and ball,i.e. some equations in text are provided only. Therefore, we can extract the systematic equation directly]
         -----------------
         
         Now, think on this searching game.
-        Q:
         Problem: {question}
         Information to extract: {prompts}
         Output format: {example_prompt}
-        Answer: (Your answer)
+        -----------------
         '''
-        ret = get_chat(prompt, ChatModel.GPT3_5, temperature=0.5)
-        return re.findall(r'.*?\[(.*?)\].*?', ret)
+        ret = get_chat(prompt, model=ChatModel.GPT3_5, temperature=0.5)
+        ret = re.findall(r'.*?\[(.*?)\].*?', ret)
+        if len(ret)>1:
+            ans, reason = ret[:2]
+        else:
+            ans, reason = ret[0], 'No reason.'
+        if 'no' in ans.lower():
+            print('AI think no enough information to fulfil the input')
+            return None
+        else:
+            print('AI think the input could be fulfilled reason: ', reason)
+            return ans
+

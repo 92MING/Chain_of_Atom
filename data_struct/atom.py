@@ -102,7 +102,7 @@ class Atom(PromptedObj, metaclass=AtomMeta):
         Inputted values will be stored in each input param. You could access by self.inputVals.
         Outputted values will be stored in each output param. You could access by self.outputVals.
         '''
-
+        print(cls.cls_name(), ' execute')
         # input values
         for i, value in enumerate(values):
             cls.inputs[i].input(value)
@@ -111,12 +111,12 @@ class Atom(PromptedObj, metaclass=AtomMeta):
         result = cls.run(*cls.inputVals())
 
         # save the result into output params
-        if len(cls.outputs) > 1:
-            for i, value in enumerate(result):
-                cls.outputs[i].input(value)
-        else:
-            cls.outputs[0].input(result)
-        return cls
+        # if len(cls.outputs) > 1:
+        #     for i, value in enumerate(result):
+        #         cls.outputs[i].input(value)
+        # else:
+        #     cls.outputs[0].input(result)
+        return result
 
     @classmethod
     def run(self, *inputs):
@@ -140,5 +140,4 @@ def k_similar_atoms(prompt:str, k=5):
     prompt_embed = get_embedding_vector(prompt)
     cypher = f'CALL db.index.vector.queryNodes("Atom_INDEX",{k},{prompt_embed.tolist()}) YIELD node return elementId(node)'
     atom_ids = neo4j_session().run(cypher).data()
-    print(atom_ids)
     return [Atom.find_subcls_byID(atom_id['elementId(node)']) for atom_id in atom_ids]
