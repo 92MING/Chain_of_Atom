@@ -16,7 +16,8 @@ def run(backup_neo4j=True):
     from data_struct.thinker import Thinker
     thinker = Thinker()
     # thinker.thinking_process_ipo('With only +, -, *, /, how to get 24 from 4, 5, 6, 10?')
-    thinker.thinking_process_ipo('7 orange and 3 apple cost 44 dollars and 6 orange and 6 apple cost 48 dollars, what are the prices of apple and orange?')
+    ret = thinker.think('7 orange and 3 apple cost 44 dollars and 6 orange and 6 apple cost 48 dollars, what are the prices of apple and orange?')
+    print("AI think the answer should be: ", ret)
 
 if __name__ == '__main__':
     run()

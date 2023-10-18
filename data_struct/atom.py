@@ -65,6 +65,10 @@ class Atom(PromptedObj, metaclass=AtomMeta):
     '''Override this cls property to specify the input params of the atom.'''
     outputs:Tuple[Value,...] = None
     '''Override this cls property to specify the output params of the atom.'''
+    scripts = None
+    '''Override this cls property to specify the scripts of run function of the atom if atom's run function could not be prefined'''
+    false_codes = []
+    '''Stores false code used before in scripts'''
 
     def __init__(self):
         raise Exception("Atom is a static class, don't initialize it. You should herit to define your own atom with input/ output params and run method.")
@@ -111,11 +115,11 @@ class Atom(PromptedObj, metaclass=AtomMeta):
         result = cls.run(*cls.inputVals())
 
         # save the result into output params
-        # if len(cls.outputs) > 1:
-        #     for i, value in enumerate(result):
-        #         cls.outputs[i].input(value)
-        # else:
-        #     cls.outputs[0].input(result)
+        if len(cls.outputs) > 1:
+            for i, value in enumerate(result):
+                cls.outputs[i].input(value)
+        else:
+            cls.outputs[0].input(result)
         return result
 
     @classmethod

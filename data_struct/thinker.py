@@ -8,7 +8,7 @@ from data_struct.atom import *
 from data_struct.value import *
 from data_struct.converter import IntListConverter, Converter
 from typing import Union
-from data_struct.tree import Node, Tree
+from data_struct.graph import Node, Graph
 import ast
 import copy
 from utils.neo4j_utils import neo4j_session
@@ -223,10 +223,10 @@ class Thinker:
         mapping = {'str': str, 'int': int, 'float': float, 'list': list, 'dict': dict, 'bool': bool}
         return mapping[ret]
 
-    def _check_correctness(self, ):
+    def _keep_explore_atom(self, ):
         pass
 
-    def _python_code_for_atom(self, input_values, output_values, atom_prompts , false_codes: list[str, ...]) -> str:
+    def _python_code_for_atom(self, input_values, output_values, atom_prompts, false_codes: list[str, ...]) -> str:
         if len(false_codes)==0:
             _false_codes = "No false code is provided in this problem"
         else:
@@ -274,6 +274,8 @@ class Thinker:
         {input_values_prompt}
         {output_values_prompt}
         {_false_codes}
+        Answer: 
+        [ ]
         """
         ret = self._get_quoted_strs(get_chat(prompt_, model=self.model, temperature=self.temperature))
         return ret
@@ -285,8 +287,6 @@ class Thinker:
                 prompt = prompt_
                 inputs = tuple(*input_value)
                 outputs = tuple(*output_value)
-                scripts = None
-                false_codes = []
                 @classmethod
                 def run(cls):
                     scripts = cls.function_create()
@@ -305,7 +305,6 @@ class Thinker:
                         else:
                             cls.scripts = self._python_code_for_atom(input_value, output_value, prompt_, cls.false_codes)
 
-
         elif promptetype == Value:
             class TempPromptedObject(promptetype):
                 prompt = prompt_
@@ -319,8 +318,7 @@ class Thinker:
         return TempPromptedObject
 
     # endregion
-
-    def create_atom_input_value(self,input_value_prompts, atom_prompt):
+    def create_atom_input_value(self,input_value_prompts, atom_prompt, value):
         # no atom could be used. We have to create it by ourselves.
         input_value_prompts = re.split(r'\s*,\s*', input_value_prompts)
         input_value_lists = []
@@ -329,39 +327,44 @@ class Thinker:
         print(f"Creating new atom with {atom_prompt}")
         for input_value_prompt in input_value_prompts:
             print(f"Creating {atom_prompt} input prompt: {input_value_prompt}")
-            input_value = self._create_promptedobject(promptetype=Value, prompt_=input_value_prompt,
-                                                          sub_cls_name=input_value_prompt)
+            input_value = self._create_promptedobject(promptetype=Value, prompt_=input_value_prompt, sub_cls_name=input_value_prompt)
             cypher = input_value.create_subcls_cyphers()
             session.run(cypher)
             input_value_lists.append(input_value)
 
-        atom = self._create_promptedobject(promptetype=Atom, prompt_=atom_prompt, sub_cls_name=atom_prompt,
-                                               input_value=input_value_lists, output_value=[value])
+        atom = self._create_promptedobject(promptetype=Atom, prompt_=atom_prompt, sub_cls_name=atom_prompt, input_value=input_value_lists, output_value=[value])
         cypher = atom.create_subcls_cyphers()
         session.run(cypher)
         cypher1 = atom.build_output_relationship_value()
         cypher2 = atom.build_input_relationship_value()
         session.run(cypher1)
         session.run(cypher2)
-        return atom,input_value_lists
+        return atom, input_value_lists
 
-    def thinking_process_ipo(self, question: str):
+    def _fix_cycle(self,):
+        pass
 
-        '''
-        Explain on some variables in this function
-        output_value: usually the output_value of a atom
-        input_value(s) : usually the input_value(s) of a atom
-        output_prompt: prompt of the output of a atom given by chat_model
-        input_prompt(s): prompt of the input(s) of a atom given by chat_model
-        atom_prompt: prompt of the atom given by chat_model
-        output_embed: embedding form of the prompt
-        input_embed(s): embedding form of the prompt(s)
-        atom_embed(s): embedding form of the prompt(s)
-        thought: PromptedObj that will be used in solving this problem
-        chains_of_thought: Representing all the PromptedObj involved in this problem
-        chains_of_atom: the descending list of atoms that will be involved in this problem
-        '''
+    def _fix_atom(self, atom):
+        try:
+            function_create = getattr(atom,'function_create')
+            if callable(function_create):
+                function_create(atom)
+        except:
+            atom.false_codes.append(atom.scripts)
+            atom.scripts = self._python_code_for_atom(atom.inputs, atom.outputs, atom.prompt, atom.false_codes)
+        pass
 
+    def _check_for_correctness(self, ret, chains_of_node):
+        '''Function to check whether error in running and solve the error'''
+        while isinstance(ret, Atom) or isinstance(ret, Value):
+            if isinstance(ret, Atom):
+                self._fix_atom(ret)
+            elif isinstance(ret, Value):
+                self._keep_explore_atom(ret)
+            ret = chains_of_node.run_the_tree()
+        return ret
+
+    def think(self, question: str):
         lists_of_io_node: list[Node, ...] = []
         '''the list of storing unprocessed node instance of input/output value used in this problem'''
         lists_of_value: list[Value, ...] = []
@@ -387,14 +390,14 @@ class Thinker:
 
         lists_of_value.append(output_value)
 
-        thought = Node(output_value)
+        thought_of_value = Node(output_value)
         '''all variable related to thought, are the node instance of input/output/atom'''
-        lists_of_io_node.append(thought)
+        lists_of_io_node.append(thought_of_value)
 
-        chains_of_node = Tree(question, thought)
-        '''A tree instance that connect all the node used in this problem'''
-        chains_of_atom = []
-        '''atom used in this problem'''
+        chains_of_node = Graph(question, thought_of_value)
+        '''A Graph instance that connect all the node used in this problem'''
+        chains_of_atom = Graph()
+        '''Graph stores atom used in this problem'''
         # TODO:: fix the chains of atom as well as the _step_think_prompt
         self._information_match(question, lists_of_value)
 
@@ -424,7 +427,7 @@ class Thinker:
 
                 if atom is None:
                     # No atom could be used to solve this problem in the kg
-                    atom, input_value_lists = self.create_atom_input_value(input_value_prompts,atom_prompt)
+                    atom, input_value_lists = self.create_atom_input_value(input_value_prompts,atom_prompt, value)
 
                 else:
                     # atom with similar prompt existed in the kg
@@ -459,14 +462,14 @@ class Thinker:
                         print(input_value_lists)
                         input_value_lists = [Value.cls_dict()[input_value[0]] for input_value in input_value_lists]
 
-            # finish the find of atom and input value in kg
+            # finish the find of atom and its input values in kg
             print("Therefore, atom should be: ", atom.prompt)
             chains_of_atom.append(atom)
             new_thought = Node(atom)
 
-            # insert the atom as the child of the output value
+            # insert the atom as the child of the output value, output value as the parent of atom
             thought.insert_child(children=new_thought)
-            thought = new_thought
+            new_thought.insert_parent(thought)
 
             print("Input value of this atom should be", end=" ")
             for input_value in input_value_lists:
@@ -476,8 +479,9 @@ class Thinker:
                 new_thought = Node(input_value)
                 lists_of_io_node.append(new_thought)
 
-                # inserting this input value as child of atom
+                # inserting this input value as child of atom, atom as parent of input value
                 thought.insert_child(children=new_thought)
+                new_thought.insert_parent(thought)
 
             print("")
 
@@ -486,8 +490,12 @@ class Thinker:
 
         # finish the process of finding the atom and values to solve the problem, try to run.
         ret = chains_of_node.run_the_tree()
-        # TODO:: if the AI actually have missing values and atom, need to redo again with remainder
-        print("AI think the answer should be: ", ret)
+        if ret == 'cycle error':
+            self._fix_cycle()
+            return self.think(question)
+        ret = self._check_for_correctness(ret)
+        return ret
+
 
     def think_for_possible_func(self, purpose:str, outputs, linked: True, lists_atom:[Atom,...] = [])->Atom:
         if linked:
