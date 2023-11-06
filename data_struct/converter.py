@@ -116,12 +116,20 @@ class ListConverter(Converter):
             # if [..] or (..) is found, use re to extract the sub string
             if re.match(r'\s*\[.*\]\s*$', value) or re.match(r'\s*\{.*\}\s*$', value) or re.match(r'\s*\((.*)\)\s*$', value):
                 value = re.search(r'\[.*\]|\{.*\}|\((.*)\)', value).group()[1:-1]
-            result = re.split(r'\s*,\s*', value)
+            appendix = re.search(r'\s*\{.*\}\s*', value)
+            result = re.sub("\s*,\s*'\{(.*?)\}'", "", value)
+            result = re.split(r'\s*,\s*', result)
             if len(result) == 1:
                 if result[0] == '':
                     return []
                 if ' ' in result[0]:
                     return result[0].split(' ')
+            else:
+                result = [ret[1:-1] for ret in result if ret[0] == ret[-1] == "'"]
+                if appendix is not None:
+                    appendix = appendix.group()
+                    appendix = DictConverter.convert(appendix)
+                    result.append(appendix)
             return result
         if isinstance(value, Sequence):
             return list(value)
@@ -200,7 +208,29 @@ class DictConverter(Converter):
         if isinstance(value, dict):
             return value
         if isinstance(value, str):
-            pass
+            ans = dict()
+            value = value[1:-1]
+            if ',' in value:
+                value = re.split(r'\s*,\s*', value)
+                for val in value:
+                    key, value_map = val.split(":")
+                    if key[0] == key[-1] == "'":
+                        key = key[1:-1]
+                    key = key.strip()
+                    if value_map[0] == value_map[-1] == "'":
+                        value_map = value_map[1:-1]
+                    value_map = value_map.strip()
+                    ans[key] = value_map
+            else:
+                key, value_map = value.split(":")
+                if key[0] == key[-1] == "'":
+                    key = key[1:-1]
+                key = key.strip()
+                if value_map[0] == value_map[-1] == "'":
+                    value_map = value_map[1:-1]
+                value_map = value_map.strip()
+                ans[key] = value_map
+            return ans
         try:
             return dict(value)
         except:

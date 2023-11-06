@@ -26,6 +26,7 @@ class Thinker:
         return re.findall(r'.*?\[(.*?)\].*?', s)
 
     def _init_think_output(self, question: str):
+        '''This function aims to get the final output of the problem'''
         prompt = f"""
         Suppose you are solving a problem using 'Chain of Thoughts' method, and you are now thinking the final outputs of the problem,
         which means that you are now reaching the solution of the problem.
@@ -44,7 +45,8 @@ class Thinker:
         ret = get_chat(prompt, model=self.model, temperature=self.temperature)
         return self._get_quoted_strs(ret)[0]
 
-    def _step_think_atom(self, question: str, situation: int, finishing_chain: list[Atom] = None):
+    def _step_think_atom(self, question: str, situation: int, thought: Node = None):
+        '''As COA aims to think inversely, this function will inversely think further atoms and output needed step by step'''
         prompt = f"""
         Suppose you are solving a problem using 'Chain of Thoughts' method, and you will face two situation according the question stated.
         For the first situation (1), you have come to the last step of the chain(It means after this step, you will get the answer).
@@ -58,6 +60,7 @@ class Thinker:
         You have to think the nearest chain to connect the finishing chains, so that the missing chains could be slowly found and whole problem could be solved.
         During this nearest step or chain, what method should you use to connect to the finishing chains?  Give a brief description of the method or the name of the method as well as the inputs of the method.
         Try to think what should be done before getting those finishing chains & what you will get after the nearest chain so the output of the nearest chain can be suited to the input of the head of finishing chains.
+        Note that finishing chains are connected by a symbol '<-' 
         Quote the nearest step and corresponding inputs with '[ ][ ]'.
 
         example 1:
@@ -89,97 +92,105 @@ class Thinker:
         Two steps are given in the groups of the finishing chains. Final step of this problem is to do a calculation on integer division after we have solved the linear equation. Therefore, the chain of thought should be solving the linear equation and then do the calculation to know maximum number of milk David can buy.
         Therefore, to solve the linear equation and stated in the inputs part, we need to have the sets of equation first. Therefore, constructing the system of linear equation help connected the chains.
         ------------------
-        Now, think about the question and answer the nearest step and input(s) of the chain of thoughts. Note that you don't need to answer the question and input(s) could be multiple if they can be summarized in single term and separated by a comma inside the same [ ].
+        Now, think about the question and answer the nearest step and input(s) of the chain of thoughts. Note that you don't need to answer the question and input(s) could be multiple if they cant be summarized in single term and separated by a comma inside the same [ ].
         Q: {question}
         Situation: {situation}
         """
         if situation == 2:
-            prompt += "Groups of Finishing Chains: "
-            for chain in finishing_chain:
-                prompt += f"[{chain.prompt}]["
-                for i in range(len(chain.inputs)):
-                    prompt += f"{chain.inputs[i].prompt}"
-                    if i != len(chain.inputs)-1:
-                        prompt += ","
-                prompt += "]<-"
-            prompt += "?"
+            extra = "?"
+            parent_atom = thought.parents[0]
+            while len(thought.parents) == 0:
+                extra = f"[{parent_atom.promptedobj.prompt}][{thought.promptedobj.prompt}]<-" + extra
+                thought = parent_atom.parents[0]
+            extra = "Groups of Finishing Chains: " + extra
+            prompt += extra
         ret = get_chat(prompt, model=self.model, temperature=self.temperature)
-        return self._get_quoted_strs(ret)
+        atom_prompt, input_value_prompts = self._get_quoted_strs(ret)
+        if ',' in input_value_prompts:
+            input_value_prompts = re.split(r'\s*,\s*', input_value_prompts)
+        else:
+            input_value_prompts = [input_value_prompts]
+        return [atom_prompt,input_value_prompts]
 
     def _information_match(self, problem: str, input_prompts: list):
+        '''This function aims to check whether current information are needed to solve the problem'''
         check = ""
         for i, input_prompt in enumerate(input_prompts):
-            check += f"{i+1}. {input_prompt.prompt} \n"
+            check += f"Information {i+1}. Is {input_prompt.prompt} provided in the problem?\n"
         prompt_ = f"""
-        Suppose you are playing a extraction game now. 
-        You receive a problem in this game and some searching-information.
-        For the problem given, it could be divided into two part, one is information part of the problem, one is question part of the problem. 
-        Information part includes the background of the problem mentioned. Question part are focusing on the question that this problem would like to ask.
-        You are required to focus on the information part.
-        for each searching-information, you have to determine whether this searching-information exists in the information part of the problem stated.
-        'Exist' here means that the information part of the problem provided or stated this searching-information.
-        So, the procedure of this game is firstly breaking the whole problem into information and question parts and only focus on the information part. Secondly, you have to determine whether the searching information exists in the information part of the problem
-        Answer 1 if you think the existence for that searching-information occur, otherwise please answer 0.
-        The searching-information could be multiple, with the number denoted.
-        Quote the answer with '[ ]'. Answer for multiple searching-information should be separated by comma, in the same '[ ]'.
+        Suppose you are solving a problem using 'Chain of Thoughts' method.
+        Each chain under this problem is called a step, and the problem could be solved step by step (chain by chain). For each chain, only a tiny step should be processed.
+        You now receive a text called problem which to be solved using chain of thoughts method and some questions the existence of the information.
+        Current situation is you are now located in the first chain, steps to solve the problem.
+        For the first step of the chain of thought, you should extract some useful information from the information to prepare solving this problem.
+        You would be given some questions, determining whether this would be some information that you can extract in the first step.
+        Therefore, the task would be determining some information could be extracted in the first step.
+        originally, the first step would be thinking on what useful information provided in the problem help solve the problem, and then build up those information to get the answer.
+        In a contradict, now you are required to determine whether some information are provided in the problem or not and should be used in the first step.
+        Try to firstly understand the question, what information it seeking, and trace back to the content of problem. Tracing back whether the problem provided these information to extract at the first place and should be used as the first step.
+        Fully analysis on the problem is required, as you have to determine whether these information are fake, and not provided in the problem.
+        
+        Answer 1 if you think this information is the true, otherwise 0 should be given.
+        The basic thoughts could be multiple, with the number denoted.
+        Quote the answer within '[ ]'. Answer for multiple basic thoughts should be separated by comma, in the same '[ ]'. You are required to consider each basic thought separately.
         
         Example 1 and 2 showing how the problems should be tackled.
         example 1:
         ------------------
         Q: 
         Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What is the price of the ball?
-        Searching-information: 
-        1. the system of the linear equation in mathematical format. 
-        2. mathematics equations in text format.
-        3. solution of the system of linear equation
+        Question: 
+        Information 1. Is the system of the linear equation in mathematical format provided in the problem?
+        Information 2. Is word expression of math equations provided in the problem?
+        Information 3. Is find solution of the system of linear equation provided in the problem?
         
         Answer : [0,1,0]
         
         Reason:
-        The answer suggest that only searching-information 2(mathematics equations in text format) existed.
+        [0,1,0] means only information 2 is the true information that is provided in the problem.
         There are some explanations.
-        Following the guidelines given, this problem could be firstly broken into two parts, 
-        for the information part:  "The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball."
-        for the question part: "What is the price of the ball?"
         
-        Secondly, determine each Searching-information to check whether they exist in the information part of the problem, i.e. ("The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball.")
-        For Searching-information 1, the system of linear equations in MATHEMATICAL format have NOT exist in the information part of the problem. mathematical equations likes '4x+5y=10 and 6x-7y=20' are NOT provided in this problem, However, only text describing of mathematics equation are provided, "The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball.". Therefore the system of the linear equation in mathematical format does NOT exist in exist.
-        For Searching-information 2, mathematical equations in TEXT format EXISTS in the information part of the problem. "The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball." is the mathematical equation in TEXT format shown in the information part. Therefore mathematics equations in text format exists.
-        For Searching-information 3, the solution of the system of linear equations does NOT exist in the information part. It could clearly seen, no solution of the the equations is shown in the information part.
+        For information 1, the question here is asking whether the system of the linear equation in mathematical format is provided in the problem. By tracing back the content of the problem. There is only words expression of equation about pen and ball, no maths equation like '4x+y=10' is provided. Therefore, this is false information, no such inforamtion are provided.
         
+        For information 2, the question here is asking whether word expression of math equations is provided in the problem. Since "The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball." is the mathematical equation expressed by words and provided in the problem. Moreover, the word expression should be used in the first step. Therefore, this is true information.
+        
+        For information 3, the question here is asking whether solution of the system of linear equation is provided in the problem. Obviously, no solution of th system of linear equation are provided in the text. And this should be the final step of this problem. It is clearly to determine that this should be false information provided by the problem.
+        
+        Therefore, it clear shows that you have to think with procedure:
+        1. fully understand what the information question seeking.
+        2. Are these information are clearly provided in the first place?
         ------------------
         
         example 2:
         ------------------
         Q:
         Problem: using addition/subtraction/multiplication/division, how can we get 24 from 3,4,5,6?
-        Searching-Information: 
-        1. The list of integer used to build 24.
-        2. The answer of the formula that build 24.
+        Question: 
+        information 1. Is the list of integer used to build 24 provided in the problem?
+        information 2. Is the answer of the formula that build 24 provided in the problem?
         Answer : [1,0]
         
         Reason:
-        The answer suggested that information 1 exists.
-        Following the guidelines given, this problem could be firstly broken into two parts,
-        for the information part: "Using addition/subtraction/multiplication/division", "3,4,5,6"
-        for the question part: "how to get 24?"
+        [1,0] means only information 1 is the true information that provided in the problem.
+        There are some explanations.
         
-        Secondly, determine each Searching-information to check whether they exist in the information part of the problem, i.e. ("Using addition/subtraction/multiplication/division", "3,4,5,6")
-        For Searching-information 1,The list of integer used to build 24 EXISTS in the information part, i.e. "3,4,5,6" in the information part. Therefore 1 is given.
-        For Searching-information 2,The answer of the formula that build 24 does NOT existed in the information part. This searching-information is related to the answer of this problem which is needed to build up by hand, but not exist in the given information of the problem.
+        For information 1, the question here is asking whether the list of integer used to build 24 is provided in the problem. Since it is obviously provided in the problem.
+        
+        For information 2, the question here is asking whether the answer of the formula that build 24 is provided in the problem. Again, tracing back the problem, it is not provided a answer of formula to build 24.
         -----------------
         
-        Now, think on this extraction game.
+        Now, think on this.
         Q: 
         Problem: {problem}
-        Information: 
+        Question: 
         {check}
-        
         A:(Your answer) 
         -----------------
         """
 
-        ret = self._get_quoted_strs(get_chat(prompt_, model=self.model, temperature=self.temperature))
+        ret = get_chat(prompt_, model=self.model, temperature=self.temperature)
+        print(ret)
+        ret = self._get_quoted_strs(ret)
         ret = NumListConverter.convert(ret)
         ret = [i for i in range(len(ret)) if ret[i] == 1]
         for index in sorted(ret, reverse=True):
@@ -187,6 +198,7 @@ class Thinker:
             del input_prompts[index]
 
     def _datatype_guess(self, input_prompt):
+        '''Guess the datatype of the value'''
         prompt_ = f"""
         There are some python datatype: str,int,float,list,dict,bool.
         str: string
@@ -218,15 +230,138 @@ class Thinker:
         Answer: (Your answer)
         -----------------
         """
-        ret = self._get_quoted_strs(get_chat(prompt_, model=self.model, temperature=self.temperature))
+        ret = self._get_quoted_strs(get_chat(prompt_, model=self.model, temperature=self.temperature))[0]
         ret = ret.lower()
         mapping = {'str': str, 'int': int, 'float': float, 'list': list, 'dict': dict, 'bool': bool}
         return mapping[ret]
 
-    def _keep_explore_atom(self, ):
+    def _keep_explore_atom(self, node, chains_of_node, lists_of_value, lists_of_io_node):
+        '''if current lowest atom still can't be solved directly, more atoms are needed to build from this'''
+        atom, input_value_lists = self.extend_graph_in_question(node, chains_of_node)
+        print("New atom should be used", atom, " ", atom.prompt)
+        new_thought = Node(atom)
+        node.insert_children(new_thought)
+        new_thought.insert_parent(node)
+
+        thought = new_thought
+        print("Input value of this atom should be", end=" ")
+        for input_value in input_value_lists:
+            print(input_value.prompt, end=" ")
+            # adding this value into preprocessing list
+            lists_of_value.append(input_value)
+            new_thought = Node(input_value)
+            lists_of_io_node.append(new_thought)
+
+            # inserting this input value as child of atom, atom as parent of input value
+            thought.insert_children(children=new_thought)
+            new_thought.insert_parent(thought)
+        print("")
+
+    def _voting_for_ans(self, result, question, k, limit):
+        '''valid the final answer k-times'''
+        valid = 0
+        for i in range(k):
+            valid += self._ans_valid_check(result, question)
+        if valid/k >= limit:
+            return True
+        else:
+            return False
+
+    def _ans_valid_check(self, result, question):
+        '''Validation on the answer generated, checking its correctness'''
+        '''Checking whether the answer generated is correct or not'''
+        prompt_ = f"""
+        You are now checking the answer generated by you previously, based on a question.
+        Try to think whether the answer you generated before is correct or not.
+        If you think it is correct, please answer 1 to valid the correctness, otherwise answer 0.
+        Quote your answer in [ ]
+        
+        Here are some example situation for you to follow:
+        -----------------
+        example 1:
+        Question: The price of tha ball and pen are 10, and the price of the ball minus the pen's are 2. What is the price of pen?
+        Answer: {{pen: 4, ball: 6}}
+                
+        VALIDATION: [1]
+        
+        Explanation: check 6+4=10, 6-4=2. Both variables suit to what the question required. Therefore, 1 is given, which is true.
+        -----------------
+        
+        example 2:
+        Question: The price of the ball and pen are 10, and the price of the ball minus the pen's are 2. What is the price of pen?
+        Answer: {{pen: 5, ball:5}}
+        
+        VALIDATION: [0]
+        
+        Explanation: only the first requirement is satisfied, 5+5=10, while the price of the ball minus the pen's are not 2. Therefore, 0 is given, which is false.
+        -----------------
+        Here are the answer that you are required to valid.
+        Question: {question}
+        Answer: {result}
+        
+        VALIDATION: (your answer)
+        -----------------
+        Please note that only 1 or 0 is needed, explanations are just reference, you need not to give the explanations.
+        """
+        ret = self._get_quoted_strs(get_chat(prompt_, self.model, self.temperature))[0]
+        while not (ret == '1' or ret == '0'):
+            ret = self._get_quoted_strs(get_chat(prompt_, self.model, self.temperature))[0]
+        if ret == '1':
+            return 1
+        return 0
+
+    def _ans_extract(self, result, question):
+        '''Remove any unnecessary answer to this question'''
+        prompt_ = f"""
+        You are now checking the answer generated by you previously, based on a question.
+        Try to determine there exists unnecessary answer which the question doesn't require in the generated result or not. It is sure that the answer given is correct, but may contain redundant information.
+        You can either remove unnecessary answer if you find it, or keep the answer remain unchanged.
+        Quote your answer in [ ]
+
+        Here are some example situation for you to follow:
+        -----------------
+        example 1: 
+        Question: The price of tha ball and pen are 10, and the price of the ball minus the pen's are 2. What is the price of pen?
+        Answer: {{pen: 4, ball: 6}}
+
+        Refined: [{{pen: 4}}]
+
+        Explanation: only prices of pen is needed. Therefore, the price of the
+        ----------------
+
+        example 2:
+        Question: The price of tha ball and pen are 10, and the price of the ball minus the pen's are 2. What is the price of pen and ball?
+        Answer: {{pen: 4, ball: 6}}
+
+        Refined: [{{pen: 4, ball: 6}}]
+
+        Explanation: prices of pen and ball are both needed. These two answer are not redundant. Therefore, the whole answer remain unchanged.
+        ----------------
+        Here are the answer that you are required to refine.
+        Question: {question}
+        Answer: {result}
+
+        Refined: (your answer)
+        ---------------
+        Please note that explanations are just reference, you need not to give the explanations.
+        """
+        ret = self._get_quoted_strs(get_chat(prompt_, self.model, self.temperature))[0]
+        return ret
+
+    def _prompt_for_prompt_generation(self):
+        prompt_ = f"""
+        You are now required to generate some prompt so that you can generate a answer 
+        """
+        pass
+
+    def _check_generative_tasks(self):
+        prompt_ = f"""
+        
+        """
         pass
 
     def _python_code_for_atom(self, input_values, output_values, atom_prompts, false_codes: list[str, ...]) -> str:
+        '''python scripts for atoms that could be processed by python/ without gpt directly'''
         if len(false_codes)==0:
             _false_codes = "No false code is provided in this problem"
         else:
@@ -277,23 +412,70 @@ class Thinker:
         Answer: 
         [ ]
         """
-        ret = self._get_quoted_strs(get_chat(prompt_, model=self.model, temperature=self.temperature))
+        ret = self._get_quoted_strs(get_chat(prompt_, model=self.model, temperature=self.temperature))[0]
         return ret
+
+    def example_format_form(self, data_types, input_prompt):
+        '''Returning output format of new Value'''
+        prompt_ = f"""
+        You are now facing a challenge related to python,
+        you will be given the datatype about a variable and a description on that.
+        Try to think a correct example of the content of the variable.
+        Quote the answer with a extra ( ).
+        
+        Here are some example situation for you to follow:
+        -----------------
+        example 1:
+        Data_types: dict
+        Description: the solution of a system of linear equations
+        
+        Answer: ({{x:5,y:10}})
+        
+        Explanation: the {{}} showcases the dict datatype in python, two variable (x,y) are mapped to (5,10), could be a solution of a system of linear equation.
+        Therefore, the answer is a correct example content.
+        -----------------
+        example 2:
+        Data_types: list
+        Description: permutation of a list of number
+        
+        Answer: ([[1,2,3],[1,3,2],[2,1,3],[2,3,1],[3,1,2],[3,2,1]])
+        
+        Explanation: the [] showcases the list datatype in python, three number is used in the example to represent the permuataion of a list of number.
+        -----------------
+        EXTRA INFORMATION:::
+        There are some python datatype: str,int,float,list,dict,bool.
+        str: string
+        int: integer
+        float: floating point number
+        list: multiple element storage
+        dict: dictionary, a mapping function in python
+        -----------------
+        Here are the question that you are required to answer.
+        Data_types: {data_types}
+        Description: {input_prompt}
+        
+        Answer: (your answer)
+        ----------------
+        Please note that explanations are just reference, you need not to give the explanations.
+        """
+        ret = get_chat(prompt_, self.model, self.temperature)
+        return re.findall(r'.*?\((.*?)\).*?', ret)[0]
 
 
     def _create_promptedobject(self, promptetype: Union[Atom, Value], prompt_: str, sub_cls_name: str, input_value: list, output_value: list):
+        '''Creating new atom and value needed'''
         if promptetype == Atom:
             class TempPromptedObject(promptetype):
                 prompt = prompt_
                 inputs = tuple(*input_value)
                 outputs = tuple(*output_value)
                 @classmethod
-                def run(cls):
-                    scripts = cls.function_create()
+                def run(cls, *inputs):
+                    cls.function_create()
                     ast_obj = ast.parse(cls.scripts)
                     plain_text = ast.unparse(ast_obj)
                     exec(plain_text)
-                    return cls.running
+                    return cls.running(*inputs)
                 @classmethod
                 def function_create(cls, change=False):
                     if change:
@@ -310,6 +492,7 @@ class Thinker:
                 prompt = prompt_
                 expected_type = self._datatype_guess(prompt_)
                 converter = Converter[expected_type]
+                example_prompt = self.example_format_form(expected_type, prompt)
         else:
             return None
 
@@ -319,8 +502,7 @@ class Thinker:
 
     # endregion
     def create_atom_input_value(self,input_value_prompts, atom_prompt, value):
-        # no atom could be used. We have to create it by ourselves.
-        input_value_prompts = re.split(r'\s*,\s*', input_value_prompts)
+        '''no atom could be used. We have to create it by ourselves.'''
         input_value_lists = []
         '''list stores the input values used for this atom'''
 
@@ -342,29 +524,110 @@ class Thinker:
         return atom, input_value_lists
 
     def _fix_cycle(self,):
+        '''If cycle found in graph using to solve the problem, then need to clear the recursion build in kg'''
         pass
 
     def _fix_atom(self, atom):
+        '''If error in new-created atom, fix it here'''
         try:
-            function_create = getattr(atom,'function_create')
+            function_create = getattr(atom, 'function_create')
             if callable(function_create):
-                function_create(atom)
+                function_create(atom, True)
         except:
-            atom.false_codes.append(atom.scripts)
-            atom.scripts = self._python_code_for_atom(atom.inputs, atom.outputs, atom.prompt, atom.false_codes)
-        pass
+            def function(cls, change=False):
+                if change:
+                    cls.false_codes.append(cls.scripts)
+                    cls.scripts = self._python_code_for_atom(atom.inputs, atom.outputs, atom.prompt, cls.false_codes)
+                else:
+                    if cls.scripts is not None:
+                        return cls.scripts
+                    else:
+                        cls.scripts = self._python_code_for_atom(atom.inputs, atom.outputs, atom.prompt, cls.false_codes)
+            def run(cls, *inputs):
+                cls.scripts = cls.function_create(True)
+                ast_obj = ast.parse(cls.scripts)
+                plain_text = ast.unparse(ast_obj)
+                exec(plain_text)
+                return cls.running(*inputs)
+            atom.function_create = function
+            atom.run = run
 
-    def _check_for_correctness(self, ret, chains_of_node):
+    def _check_for_correctness(self, ret, chains_of_node, lists_of_value, lists_of_io_node):
         '''Function to check whether error in running and solve the error'''
-        while isinstance(ret, Atom) or isinstance(ret, Value):
-            if isinstance(ret, Atom):
-                self._fix_atom(ret)
-            elif isinstance(ret, Value):
-                self._keep_explore_atom(ret)
+        while isinstance(ret, Node):
+            print("need to correct, node: ", ret.promptedobj)
+            promptedobj = ret.promptedobj
+            if promptedobj.BASE_CLS_NAME == 'Atom':
+                self._fix_atom(promptedobj)
+            elif promptedobj.BASE_CLS_NAME == 'Value':
+                self._keep_explore_atom(ret, chains_of_node, lists_of_value, lists_of_io_node)
             ret = chains_of_node.run_the_tree()
+            print(ret)
         return ret
 
+    def extend_graph_in_question(self, thought, chains_of_node):
+        '''Given a output, find or create the atom and its inputs'''
+        # search whether we have atom linked with this value (in output relationship)
+        value = thought.promptedobj
+        question = chains_of_node.question
+        ret = session.query_linked_relationship(value.BASE_CLS_NAME, value.cls_name(), 'OUTPUT')
+        list_of_atom = [Atom.cls_dict()[atom[0]] for atom in ret if atom[0] in Atom.cls_dict().keys()]
+        '''Stores the atoms that have output relationship with this value'''
+        print("linked atoms: ", list_of_atom)
+
+        if len(list_of_atom) == 0:
+            # if no atom are linked
+            print("currently, no Atom with output relationship on that output Value")
+            # need to search unlinked atom by ourselves, asking their prompts first
+            if chains_of_node.head == thought:
+                [atom_prompt, input_value_prompts] = self._step_think_atom(question, 1)
+            else:
+                [atom_prompt, input_value_prompts] = self._step_think_atom(question, 2, thought)
+
+            # searching current atom having similar prompt or not
+            atom = self.think_for_possible_func(atom_prompt, [value], False)
+
+            if atom is None:
+                # No atom could be used to solve this problem in the kg
+                atom, input_value_lists = self.create_atom_input_value(input_value_prompts, atom_prompt, value)
+
+            else:
+                # atom with similar prompt existed in the kg
+                print(f"successfully searching in kg")
+                session.create_relationship('Value', value.cls_name(), 'Atom', atom.cls_name(), 'OUTPUT')
+                input_value_lists = session.query_linked_relationship(atom.BASE_CLS_NAME, atom.cls_name(), 'INPUT')
+
+                if input_value_lists is None:
+                    # input value doesnt assigned for that atom(actually impossible), could be solved by using the input_prompts
+                    raise Exception("Something goes wrong(input_value)")
+                else:
+                    input_value_lists = [Value.cls_dict()[input_value[0]] for input_value in input_value_lists]
+
+        else:
+            # linked relationship could be found
+            if chains_of_node.head == thought:
+                [atom_prompt, input_value_prompts] = self._step_think_atom(question, 1)
+            else:
+                [atom_prompt, input_value_prompts] = self._step_think_atom(question, 2, thought)
+
+            # check under these linked relationships, useful atom exist or not
+            atom = self.think_for_possible_func(atom_prompt, [value], True, list_of_atom)
+            if atom is None:
+                # No linked atom could be used to solve this problem in the kg
+                atom, input_value_lists = self.create_atom_input_value(input_value_prompts, atom_prompt)
+
+            else:
+                input_value_lists = session.query_linked_relationship(atom.BASE_CLS_NAME, atom.cls_name(), 'INPUT')
+                if input_value_lists is None:
+                    raise Exception("Something goes wrong(input_value)")
+                else:
+                    print(input_value_lists)
+                    input_value_lists = [Value.cls_dict()[input_value[0]] for input_value in input_value_lists]
+
+        return atom, input_value_lists
+
     def think(self, question: str):
+        '''The overall algorithm'''
         lists_of_io_node: list[Node, ...] = []
         '''the list of storing unprocessed node instance of input/output value used in this problem'''
         lists_of_value: list[Value, ...] = []
@@ -396,8 +659,6 @@ class Thinker:
 
         chains_of_node = Graph(question, thought_of_value)
         '''A Graph instance that connect all the node used in this problem'''
-        chains_of_atom = Graph()
-        '''Graph stores atom used in this problem'''
         # TODO:: fix the chains of atom as well as the _step_think_prompt
         self._information_match(question, lists_of_value)
 
@@ -407,70 +668,17 @@ class Thinker:
             print('current output_value needed: ', value.prompt)
             thought = lists_of_io_node.pop(0)
 
-            # search whether we have atom linked with this value (in output relationship)
-            ret = session.query_linked_relationship(value.BASE_CLS_NAME, value.cls_name(), 'OUTPUT')
-            list_of_atom = [Atom.cls_dict()[atom[0]] for atom in ret if atom[0] in Atom.cls_dict().keys()]
-            '''Stores the atoms that have output relationship with this value'''
-            print("linked atoms: ", list_of_atom)
-
-            if len(list_of_atom) == 0:
-                # if no atom are linked
-                print("currently, no Atom with output relationship on that output Value")
-                # need to search unlinked atom by ourselves, asking their prompts first
-                if len(chains_of_atom) == 0:
-                    [atom_prompt, input_value_prompts] = self._step_think_atom(question, 1)
-                else:
-                    [atom_prompt, input_value_prompts] = self._step_think_atom(question, 2, chains_of_atom)
-
-                # searching current atom having similar prompt or not
-                atom = self.think_for_possible_func(atom_prompt, [value], False)
-
-                if atom is None:
-                    # No atom could be used to solve this problem in the kg
-                    atom, input_value_lists = self.create_atom_input_value(input_value_prompts,atom_prompt, value)
-
-                else:
-                    # atom with similar prompt existed in the kg
-                    print(f"successfully searching in kg")
-                    session.create_relationship('Value',value.cls_name(),'Atom',atom.cls_name(),'OUTPUT')
-                    input_value_lists = session.query_linked_relationship(atom.BASE_CLS_NAME, atom.cls_name(), 'INPUT')
-
-                    if input_value_lists is None:
-                        # input value doesnt assigned for that atom(actually impossible), could be solved by using the input_prompts
-                        raise Exception("Something goes wrong(input_value)")
-                    else:
-                        input_value_lists = [Value.cls_dict()[input_value[0]] for input_value in input_value_lists]
-
-            else:
-                # linked relationship could be found
-                if len(chains_of_atom) == 0:
-                    [atom_prompt, input_value_prompts] = self._step_think_atom(question, 1)
-                else:
-                    [atom_prompt, input_value_prompts] = self._step_think_atom(question, 2, chains_of_atom)
-
-                # check under these linked relationships, useful atom exist or not
-                atom = self.think_for_possible_func(atom_prompt, [value], True, list_of_atom)
-                if atom is None:
-                    # No atom could be used to solve this problem in the kg
-                    atom, input_value_lists = self.create_atom_input_value(input_value_prompts,atom_prompt)
-
-                else:
-                    input_value_lists = session.query_linked_relationship(atom.BASE_CLS_NAME, atom.cls_name(), 'INPUT')
-                    if input_value_lists is None:
-                        raise Exception("Something goes wrong(input_value)")
-                    else:
-                        print(input_value_lists)
-                        input_value_lists = [Value.cls_dict()[input_value[0]] for input_value in input_value_lists]
+            atom, input_value_lists = self.extend_graph_in_question(thought, chains_of_node)
 
             # finish the find of atom and its input values in kg
             print("Therefore, atom should be: ", atom.prompt)
-            chains_of_atom.append(atom)
             new_thought = Node(atom)
 
             # insert the atom as the child of the output value, output value as the parent of atom
-            thought.insert_child(children=new_thought)
+            thought.insert_children(children=new_thought)
             new_thought.insert_parent(thought)
 
+            thought = new_thought
             print("Input value of this atom should be", end=" ")
             for input_value in input_value_lists:
                 print(input_value.prompt, end=" ")
@@ -480,7 +688,7 @@ class Thinker:
                 lists_of_io_node.append(new_thought)
 
                 # inserting this input value as child of atom, atom as parent of input value
-                thought.insert_child(children=new_thought)
+                thought.insert_children(children=new_thought)
                 new_thought.insert_parent(thought)
 
             print("")
@@ -493,8 +701,10 @@ class Thinker:
         if ret == 'cycle error':
             self._fix_cycle()
             return self.think(question)
-        ret = self._check_for_correctness(ret)
-        return ret
+        ret = self._check_for_correctness(ret, chains_of_node, lists_of_value, lists_of_io_node)
+        if self._voting_for_ans(ret, question, 10 ,0.8):
+            return self._ans_extract(ret, question)
+        return self.think(question)
 
 
     def think_for_possible_func(self, purpose:str, outputs, linked: True, lists_atom:[Atom,...] = [])->Atom:

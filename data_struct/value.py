@@ -134,6 +134,7 @@ class Value(PromptedObj, metaclass=ValueMeta):
             cls._value = value
         else:  # try to convert
             cls._value = cls._convert(value)
+        return cls._value
     @classmethod
     def value(cls):
         return cls._value if cls._value is not None else cls.default
@@ -155,41 +156,110 @@ class Value(PromptedObj, metaclass=ValueMeta):
 
     @classmethod
     def ask_for_input(cls,question, prompts, example_prompt):
+        if prompts[-1] == '.':
+            prompts[-1] = '?'
+        elif prompts[-1] != '?':
+            prompts = prompts + '?'
+        prompts = 'give ' + prompts
+
         '''This only called if it is the bottom'''
         prompt = f'''
-        You are now playing a simple searching game. Under this game, you are required to extract information required in the question.
-        Please give the answer in the format stated. Note that the Output format stated is just a answering format to be followed, the information extracted are not necessarily equal to  the content in output format.
-        You are required to answer following the format.
-        However, sometime you may think it is impossible to extract the information stated from the problem.  You may answer no.
-        Quote the answer with [ ]
+        You are now solving a problem, you are required to answer the question using from the information given in the problem.
+        You will see that there is a question inside the problem, However, that is the final result the whole problem seeking.
+        There will be another question stated in 'Question' which you will need to deal with.
+        The question here is actually some pre-question involved in the whole problem, i.e you will need to tackle these questions in order to solve the whole problem.
+        You have to find out a certain materials from the question stated.
+        Here are two type of questions that you will face, single-step and multiple-steps questions.
+        single-step questions are the questions which will only seek the content that the problem have given directly.
+        ------------------
+        Examples for single-step question:
+        Problem: The price of the apple and orange is 10 and the price of the apple minus orange's is 1. What are the prices of the apple and orange?
+        Question: give out the what type of fruit involved.
         
+        
+        That could be generalized that single-step questions only seek information that are directly shown in the problem side.
+        Features of single-step questions:
+        they seek contents that could be directly extracted, are directly shown in the problem only.
+        ------------------
+        multiple-steps question are the questions which the content of questions seeking has not given in the question. Therefore, multiple step are required to answer this question by firstly extracting some useful information from the problem and deriving the useful information to get the answer.
+        
+        Examples for multiple-steps questions:
+        1)
+        Problem: The price of the apple and orange is 10 and the price of the apple minus orange's is 1. What are the prices of the apple and orange?
+        Question: give the solution of some math equation.
+        2)
+        Problem: There are many famous people in the world which sum of their day, month, year of birth equal to some special number. Can you name some famous people which sum of their day, month, year of birth respectively equal to 3000?
+        Question: give some famous person which sum of the day, month, year of birth equal to 3000.
+        
+        That could be generalized that multiple-steps questions will seek the information that is not given in the problem.
+        They will seek information that need to be derived, calculated or deduced from the background information the problem suggested. In some cases, their maybe even no information could be used in problem to support the derivation. Extra and specific knowledge is needed.
+        
+        As said, this then will need multiple-steps to tackle the questions. Therefore, they are called multiple-steps questions. 
+        
+        ------------------
+        As said, under this problem, you have to face two kinds of problems.
+        
+        To deal with this situation, two thinking steps are needed to give correct answer of the questions.
+        1. Try to think whether the question is a single-step question or multiple-step question. (check whether the content that question seeking provided in the problem or not)
+        2. if the question is single-step question, then you have to solve it (For answering the single-step question, try to think how to extract the content of question seeking in the problem.). If the question are multiple-step question, please do not need to solve that, just answer 'no'. Because there maybe some faults in your derivations or calculations. 
+        
+        ------------------
+        Moreover, during answering the single-step question, there is a guideline called output_format. output_format would be used as a answering template, it has no relationship with the problem and question. 
+        Don't think the answer shown output format as information provided by the problem. It only shows a answering format that you have to follow in answering this question.
+        Please quote the answer of the question with [ ].
+
+        Here are some example problem and some procedure to solve the problem.
+        ------------------
         example 1:
         ------------------
-        Problem: a medicine A and another medicine B cost 100 dollars, price of a medicine B minus price of a A equal to 50 dollars. What are the prices of A and B?  
-        Information to extract: Sentences describing the problem of system of linear equation.
-        Output format: 6 apples and a orange cost 18 dollars, 4 apples and a orange cost 14 dollars
-        Answer: [a medicine A and another medicine B cost 100 dollars, price of a medicine B minus price of a A equal to 50 dollars], [Because there are some text about mathematical equations and could be constructed as system of linear equations]
+        Problem: a medicine A and another medicine B cost 100 dollars, price of a medicine B minus price of a A equal to 50 dollars. What are the prices of A and B?
+        Question: give word expressing some equation on the A and B?
+        Output format: 6 apples and a orange cost 18 dollars, 4 apples and a orange cost 14 dollars. for question: 6 apples and a orange cost 18 dollars, 4 apples and a orange cost 14 dollars. What are prices of apples and orange.
+        Answer: [a medicine A and another medicine B cost 100 dollars, price of a medicine B minus price of a A equal to 50 dollars].
         
+        Procedure:
+        1. It is thought that the question 'find word expressing some equation on the A and B.' should be single step, as the related content are given in the text.
+        2. It is single-step problem, keep answer this question by extracting the content, 'a medicine A and another medicine B cost 100 dollars, price of a medicine B minus price of a A equal to 50 dollars'.
+        
+        -----------------
         example 2:
         -----------------
-        Problem: check the following math calculation is correct or not, "1+1=2"
-        Information to extract: the math formula to be verified
-        Output format: 2+3=5
-        Answer: [1+1=2], [the math formula to be verified are shown in problem, i.e. "1+1=2"]
-        -----------------
+        Problem: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What are the prices of pen and ball?
+        Question: give the solution of system of linear equation?
+        Output format: {{x:100, y:200, z:300}}
+        Answer: [no].
         
+        Procedure:
+        1. It is thought that the question 'find the solution of system of linear equation.' should be multiple-steps. As the content of math equation has not given. It is suggested, multiple-steps like extractions and calculations are needed.
+        2. Because it is a multiple-step question. you should answer 'no'.
+        -----------------
+        Refering to the output format shown in these two examples, these are formatting used to follow when the question is found as single-step question. Content in output format is not related to the answer of the question. Dont extract the answer in output format as the information provided by the question.
+        IN other words, output format only used for single-step question. 
+        -----------------
         example 3:
         -----------------
-        Problem: "The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball."
-        Information to extract: the system of linear equation
-        Output format: 6x+4y = 20, 5x+5y = 21
-        Answer: [no], [only some text about the relationship of pen and ball,i.e. some equations in text are provided only. Therefore, we can extract the systematic equation directly]
-        -----------------
+        Problem: Generate a HKDSE english mock paper 1, with part A,B1 and B2.
+        Question: give the mock HKDSE english paper1? 
+        Output format: """Article part A: xxxxxxxxxxx
+                          Questions part A: xxxxxxxxx
+                          Article part B1: xxxxxxxxxx
+                          Questions part B2: xxxxxxxx
+                          Article part B2: xxxxxxxxxx
+                          Questions part B2: xxxxxxxx
+                        """
+        Answer: [no].
         
+        
+        Procedure:
+        1.It is classified as multiple-step questions. Obviously, the question is asking what the problem asking, and there isn't any useful information to directly extract so that you can answer this question. Much steps are needed to build the paper/
+        2. Therefore, as it is a multiple-step questions. 'No' should be answer.
+        -----------------
         Now, think on this searching game.
         Problem: {question}
-        Information to extract: {prompts}
+        Question: {prompts}
         Output format: {example_prompt}
+        Answer: (your answer)
+        Quote your answer with [ ]
         -----------------
         '''
         ret = get_chat(prompt, model=ChatModel.GPT3_5, temperature=0.5)
@@ -199,7 +269,7 @@ class Value(PromptedObj, metaclass=ValueMeta):
         else:
             ans, reason = ret[0], 'No reason.'
         if 'no' in ans.lower():
-            print('AI think no enough information to fulfil the input')
+            print('AI think no enough information to fulfil the input', reason)
             return None
         else:
             print('AI think the input could be fulfilled reason: ', reason)

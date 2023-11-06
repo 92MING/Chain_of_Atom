@@ -100,26 +100,30 @@ class Atom(PromptedObj, metaclass=AtomMeta):
         return cls._kg_id
     # endregion
     @classmethod
-    def call(cls, *values):
+    def call(cls, **values):
         '''
         Call this atoms' function.
         Inputted values will be stored in each input param. You could access by self.inputVals.
         Outputted values will be stored in each output param. You could access by self.outputVals.
         '''
-        print(cls.cls_name(), ' execute')
-        # input values
-        for i, value in enumerate(values):
-            cls.inputs[i].input(value)
-
+        print(cls.cls_name(), ' execute', values)
+        inputVals = values['input']
+        outputVals = values['output']
+        inputVals = tuple(inputVal.promptedobj.value() for inputVal in inputVals)
         # run the atom
-        result = cls.run(*cls.inputVals())
+        print(cls.cls_name(), ' running', *inputVals)
+        result = cls.run(*inputVals)
 
         # save the result into output params
-        if len(cls.outputs) > 1:
-            for i, value in enumerate(result):
-                cls.outputs[i].input(value)
-        else:
-            cls.outputs[0].input(result)
+        # if len(cls.outputs) > 1:
+        #     for i, value in enumerate(result):
+        #         cls.outputs[i].input(value)
+        # else:
+        #     cls.outputs[0].input(result)
+        for outputVal in outputVals:
+            outputVal.promptedobj.input(result)
+        print(type(result))
+        print(cls.cls_name(), ' succeed  result: ', result)
         return result
 
     @classmethod

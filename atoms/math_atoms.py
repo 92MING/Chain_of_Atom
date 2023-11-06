@@ -53,32 +53,35 @@ class CalculateFormula(Atom):
 '''VerifyFormulaResult Value Input Class'''
 class CalculationFormulaVerify(Value):
     prompt ="calculation formula to be verified"
-    example_prompt = '1+1=2'
-    expected_type = str
-    converter = StrConverter
+    example_prompt = '[\'1+1=2\',\'1+1=3\']'
+    expected_type = list
+    converter = ListConverter
     default = ''
 
 
 '''VerifyFormulaResult Value Output Class'''
 class VerifyingAnswer(Value):
-    prompt = "correctness of the expected result equaling to the formula"
-    example_prompt = 'True'
-    expected_type = bool
-    converter = BoolConverter
+    prompt = "verified math formula equalling with a certain number"
+    example_prompt = '[\'1+1=2\']'
+    expected_type = list
+    converter = ListConverter
     default = True
 
 
 class VerifyFormulaResult(Atom):
     inputs = (CalculationFormulaVerify,)
     outputs = (VerifyingAnswer,)
-    prompt = 'Verify if a formula is valid with a given result'
+    prompt = 'Verify if some formula is valid with their given result'
     @classmethod
-    def run(cls, formula:str, expected_result:float):
-        try:
-            value = eval(formula)
-            return value == expected_result
-        except:
-            return False
+    def run(cls, formulas: list):
+            answer = []
+            for formula in formulas:
+                check = formula.split('=')
+                lhs = check[0]
+                rhs = check[1]
+                if eval(lhs) == eval(rhs):
+                    answer.append(formula)
+            return answer
 
 '''Permutations Value Input Class'''
 class PermutationsNumListStorage(Value):
@@ -172,7 +175,7 @@ class SolveOneUnknownEquation(Atom):
 '''SolveLinearEquations Value Input Class'''
 class SystemOfEquationsStoraget(Value):
     prompt = "the system of the linear equation in mathematical format"
-    example_prompt = '[\'8x + 3y− 2z = 9\', \'−4x+ 7y+ 5z = 15\', \'3x + 4y− 12z= 35\']'
+    example_prompt = '[\'8x + 3y− 2z = 9\', \'−4x+ 7y+ 5z = 15\', \'3x + 4y− 12z= 35\'] if no renaming of variable, [\'8x + 3y− 2z = 9\', \'−4x+ 7y+ 5z = 15\', \'3x + 4y− 12z= 35\', {x:apple, y:banana, z:orange}]'
     expected_type = list
     converter = ListConverter
     default = []
@@ -180,7 +183,7 @@ class SystemOfEquationsStoraget(Value):
 
 '''SolveLinearEquations Value Output Class'''
 class CalculationResultForLinearEquation(Value):
-    prompt = "the solution of system of linear equation"
+    prompt = "the solution of the system of linear equation"
     example_prompt = '{\'x\': 1, \'y\': 2, \'z\': 3}'
     expected_type = dict
     converter = DictConverter
@@ -197,9 +200,19 @@ class SolveLinearEquations(Atom):
         _replace = {
             chr(0x2212): '-',
         }
+        print(system)
+        appendix = None
+        if isinstance(system[-1], dict):
+            appendix = system[-1]
+            system = system[:-1]
         for key, value in _replace.items():
             system = [equation.replace(key, value) for equation in system]
         system = [sympy.parse_expr(equation, transformations=sympy.parsing.sympy_parser.T[:11]) for equation in system]
         system = [sympy.sympify(equation) for equation in system]
         ans = sympy.solve(system)
+        for old_key, new_key in dict(ans).items():
+            ans[str(old_key)] = int(ans.pop(old_key))
+        if appendix is not None:
+            for old_key, new_key in appendix.items():
+                ans[new_key] = ans.pop(old_key)
         return ans

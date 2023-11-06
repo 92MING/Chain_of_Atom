@@ -31,7 +31,7 @@ class Node:
 
 class Graph:
     def __init__(self, question, head: Node):
-        self.head = head
+        self.head = head if head is not None else None
         self.question = question
 
 
@@ -59,7 +59,7 @@ class Graph:
             for child in node.children:
                 if not visited.get(child, False):
                     visited[child] = False
-                    if self._cycle_detection(node, child, visited, recstack):
+                    if self._cycle_detection(child, visited, recstack):
                         return True
                 elif not recstack[child]:
                     return True
@@ -67,29 +67,36 @@ class Graph:
         return False
 
     def post_order_travel(self, stack: list, visited):
-        node = stack[len(stack)-1]
-        if not visited.get(node, False):
-            visited[node] = True
-            for child in node.children:
-                if not visited.get(child, False):
-                    visited[child] = False
-                    stack.append(child)
+        while len(stack)>0:
+            node = stack[len(stack)-1]
+            if not visited.get(node, False):
+                visited[node] = True
+                for child in node.children:
+                    if not visited.get(child, False):
+                        visited[child] = False
+                        stack.append(child)
 
-        else:
-            stack.pop()
-            if node.promptedobj == 'Value':
-                if len(node.child) == 0:
-                    value_to_be_stored = node.promptedobj.ask_for_input(self.question, node.promptedobj.prompt, node.promptedobj.example_prompt)
-                    if value_to_be_stored is None:
-                        return node.promptedobj
-                    node.promptedobj.input(value_to_be_stored)
-                elif self.head == node:
-                    return self.head.value()
             else:
-                try:
-                    node.promptedobj.call()
-                except:
-                    return node.promptedobj
+                stack.pop()
+                if node.promptedobj.BASE_CLS_NAME == 'Value':
+                    if len(node.children) == 0:
+                        value_to_be_stored = node.promptedobj.ask_for_input(self.question, node.promptedobj.prompt, node.promptedobj.example_prompt)
+                        if value_to_be_stored is None:
+                            return node
+                        print(f"final_input{node.promptedobj}: ", node.promptedobj.input(value_to_be_stored))
+                    if self.head == node:
+                        if node.promptedobj.value() == {}:
+                            return node
+                        return node.promptedobj.value()
+                else:
+                    try:
+                        node.promptedobj.call(input = node.children, output = node.parents)
+                    except:
+                        return node
+
+    def print_post_order(self):
+        pass
+
 
 
 
