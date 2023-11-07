@@ -266,8 +266,10 @@ class Value(PromptedObj, metaclass=ValueMeta):
         ret = re.findall(r'.*?\[(.*?)\].*?', ret)
         if len(ret)>1:
             ans, reason = ret[:2]
-        else:
+        elif len(ret)==1:
             ans, reason = ret[0], 'No reason.'
+        else:
+            return cls.ask_for_input(question, prompts, example_prompt)
         if 'no' in ans.lower():
             print('AI think no enough information to fulfil the input', reason)
             return None

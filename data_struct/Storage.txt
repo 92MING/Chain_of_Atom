@@ -1,0 +1,8 @@
+value
+An expression using +, -, *, / that evaluates to 24 using the numbers 4, 5, 6, and 10
+An expression using +, -, *, / that evaluates to 24 using the numbers 4, 5, 6, and 10
+str
+str
+(4*5) + (6-10)
+
+

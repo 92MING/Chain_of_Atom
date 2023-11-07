@@ -81,7 +81,7 @@ class Graph:
                 if node.promptedobj.BASE_CLS_NAME == 'Value':
                     if len(node.children) == 0:
                         value_to_be_stored = node.promptedobj.ask_for_input(self.question, node.promptedobj.prompt, node.promptedobj.example_prompt)
-                        if value_to_be_stored is None:
+                        if value_to_be_stored is None or len(value_to_be_stored) == 0:
                             return node
                         print(f"final_input{node.promptedobj}: ", node.promptedobj.input(value_to_be_stored))
                     if self.head == node:
@@ -90,7 +90,7 @@ class Graph:
                         return node.promptedobj.value()
                 else:
                     try:
-                        node.promptedobj.call(input = node.children, output = node.parents)
+                        node.promptedobj.call(input=node.children, output=node.parents)
                     except:
                         return node
 

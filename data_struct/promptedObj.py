@@ -68,7 +68,7 @@ class PromptedObjMeta(type, metaclass=PromptedObjMetaMeta):
     def __new__(self, *args, **kwargs):
         global _CREATE_NODE_CYPHER_LINES, _UPDATE_NODE_CYPHER_LINES
         cls_name = args[0]
-        if cls_name != self.BASE_CLS_NAME and cls_name not in self.cls_dict() and cls_name != 'TempPromptedObject':
+        if cls_name != self.BASE_CLS_NAME and cls_name not in self.cls_dict():
             cls:'PromptedObj' = super().__new__(self, *args, **kwargs)
             if not hasattr(cls, 'prompt') or cls.prompt is None:
                 raise Exception(f"{self.BASE_CLS_NAME}'s subclass '{cls_name}' should have a prompt.")
@@ -97,7 +97,8 @@ class PromptedObjMeta(type, metaclass=PromptedObjMetaMeta):
             return cls
         if cls_name == self.BASE_CLS_NAME:
             return super().__new__(self, *args, **kwargs)
-        elif cls_name in self.cls_dict():
+        elif cls_name in self.cls_dict() and self.cls_dict()[cls_name] == "":
+            self.cls_dict()[cls_name] = super().__new__(self, *args, **kwargs)
             return self.cls_dict()[cls_name]
 
 class PromptedObj:

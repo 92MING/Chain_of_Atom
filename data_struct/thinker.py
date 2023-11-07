@@ -10,6 +10,7 @@ from data_struct.converter import IntListConverter, Converter
 from typing import Union
 from data_struct.graph import Node, Graph
 import ast
+import inspect,os
 import copy
 from utils.neo4j_utils import neo4j_session
 
@@ -31,12 +32,18 @@ class Thinker:
         Suppose you are solving a problem using 'Chain of Thoughts' method, and you are now thinking the final outputs of the problem,
         which means that you are now reaching the solution of the problem.
         No calculation is required in this task. You are required to identify what types of final outputs should be
+        Try to think what types of output the question needed, 
+        you are not required to give out solution, but try to generalize what the solution need.
+        The answer should be generalized as simply as possible,should be not very specific.
         Quote the final output with '[ ]'.
 
         e.g.
         ------------------
         Q: The sum of the price of a pen and a ball is 11. The price of the pen is 10 more than the price of the ball. What are the prices of the ball and pen?
-        A: Final output : [Solution of system of linear equations of this problem].  
+        A: Final output : [Solution of system of linear equations].  
+        ------------------
+        Q: Please solve the following sudoku. 
+        A: Final output: [A solved sudoku]
         ------------------
         Now, think about the final output of this question. You do
         Q: {question}
@@ -129,6 +136,7 @@ class Thinker:
         In a contradict, now you are required to determine whether some information are provided in the problem or not and should be used in the first step.
         Try to firstly understand the question, what information it seeking, and trace back to the content of problem. Tracing back whether the problem provided these information to extract at the first place and should be used as the first step.
         Fully analysis on the problem is required, as you have to determine whether these information are fake, and not provided in the problem.
+        If provided, there will be a true and obvious instance shown in the problem.
         
         Answer 1 if you think this information is the true, otherwise 0 should be given.
         The basic thoughts could be multiple, with the number denoted.
@@ -142,7 +150,7 @@ class Thinker:
         Question: 
         Information 1. Is the system of the linear equation in mathematical format provided in the problem?
         Information 2. Is word expression of math equations provided in the problem?
-        Information 3. Is find solution of the system of linear equation provided in the problem?
+        Information 3. Is solution of the system of linear equation provided in the problem?
         
         Answer : [0,1,0]
         
@@ -167,7 +175,7 @@ class Thinker:
         Problem: using addition/subtraction/multiplication/division, how can we get 24 from 3,4,5,6?
         Question: 
         information 1. Is the list of integer used to build 24 provided in the problem?
-        information 2. Is the answer of the formula that build 24 provided in the problem?
+        information 2. Is the expression that build 24 provided in the problem?
         Answer : [1,0]
         
         Reason:
@@ -176,7 +184,10 @@ class Thinker:
         
         For information 1, the question here is asking whether the list of integer used to build 24 is provided in the problem. Since it is obviously provided in the problem.
         
-        For information 2, the question here is asking whether the answer of the formula that build 24 is provided in the problem. Again, tracing back the problem, it is not provided a answer of formula to build 24.
+        For information 2, the question here is asking whether the answer of the formula that build 24 is provided in the problem. Again, tracing back the problem, it is not provided a answer of formula to build 24, rather it is asking whether there is a expression, we have to find the answer of that. Therefore, it is not provided in the question.
+        
+        Therefore, it clearly show that
+        Some information that the problem are seeking are false information, because they are not provided. Provided mean a true instance is shown.
         -----------------
         
         Now, think on this.
@@ -206,31 +217,54 @@ class Thinker:
         float: floating point number
         list: multiple element storage
         dict: dictionary, a mapping function in python
-        In python environment, each variable would be assigned a datatype. 
+        In python environment, each variable would be assigned with a datatype. 
         Currently, you are required to guess the datatype of a variable (str,int,float,list,dict,bool).
         During this guessing, you will be given the information of this variable.
         Quote the answer in [ ]. You should answer one of the datatype (str,int,float,list,dict,bool).
         -----------------
-        Example 1:
+        Here are some example on each datatype:
+        FLOAT/INT:
+        1) For float or int, we only use them to store calculation result
         Information: calculation result of a formula
-        Answer: float
+        Answer: [float]
         
         Reason: It is because floating point number are needed to represent if the calculation result involves floating point, like 4/3 = 1.3333333.
+        Generally, all simple calculation that should involved only number could be stored in float. 
         -----------------
-        Example 2:
+        DICT:
+        1) For Dict, we would use it when mapping is needed.
         Information: solution of a system of linear equations
-        Answer: dict
+        Answer: [dict]
         
         Reason: It is because the variables ans their solution should be stored in mapping format, like [{{'x':3,'y':4}}] for their system of linear equation. 
         -----------------
+        STR:
+        1) We would use it when text-related content are needed
+        2) We would also use it when some expression could not stored in other datatype.
+        Information: a mathematical equation, expression or formula.
+        Answer: [str]
+        
+        Reason: string are needed to store the mathematics equation, expression or formula, like 'x^2+y^2=z^2' only could be stored in string format, could not be stored in Float/int format.
+        -----------------
+        List:
+        1) We would use it when multiple and related-content are needed to be stored.
+        ----------------
+        Try to determine with this logic:
+        1) If the content in information involved mapping, use dict. Otherwise, move to step2
+        2) If the content in information involved multiple and related-content, use list. Otherwise, move to step3.
+        3) If the content in information involved only a number, then use Float/int. Otherwise, move to step4.
+        4) Use str.
         
         Now, think on this extraction game.
         Q: 
         Information: {input_prompt}
-        Answer: (Your answer)
+        Answer: (int/str/float/list/dict) 
+        (Your answer)
         -----------------
         """
-        ret = self._get_quoted_strs(get_chat(prompt_, model=self.model, temperature=self.temperature))[0]
+        ret = get_chat(prompt_, model=self.model, temperature=self.temperature)
+        print(ret)
+        ret = self._get_quoted_strs(ret)[0]
         ret = ret.lower()
         mapping = {'str': str, 'int': int, 'float': float, 'list': list, 'dict': dict, 'bool': bool}
         return mapping[ret]
@@ -271,29 +305,36 @@ class Thinker:
         '''Validation on the answer generated, checking its correctness'''
         '''Checking whether the answer generated is correct or not'''
         prompt_ = f"""
-        You are now checking the answer generated by you previously, based on a question.
-        Try to think whether the answer you generated before is correct or not.
-        If you think it is correct, please answer 1 to valid the correctness, otherwise answer 0.
+        You are now checking the answer based on a question.
+        Try to think whether the answer is correct or not, would it be the correct answer, regarding to the question?
+        If you think it is correct, please answer true to valid the correctness, otherwise answer False.
         Quote your answer in [ ]
         
         Here are some example situation for you to follow:
         -----------------
         example 1:
-        Question: The price of tha ball and pen are 10, and the price of the ball minus the pen's are 2. What is the price of pen?
-        Answer: {{pen: 4, ball: 6}}
+        Question: The price of tha ball and pen are 10, and the price of the ball minus the pen's are 2. What is the price of pen and ball?
+        Answer: {{'pen': 4, 'ball': 6}}
                 
-        VALIDATION: [1]
+        VALIDATION: [True]
         
-        Explanation: check 6+4=10, 6-4=2. Both variables suit to what the question required. Therefore, 1 is given, which is true.
+        Explanation: 
+        Answer suggested that pen is 4 in price, ball is 6 in price.
+        check: price of tha ball and pen should be 10, 6+4 equal 10, true for this equation.
+        check: price of the ball minus pen should be 2, 6-4 equal 2, true for this equation.
+        Both variables suit to what the question required. Therefore, it is true.
         -----------------
         
         example 2:
         Question: The price of the ball and pen are 10, and the price of the ball minus the pen's are 2. What is the price of pen?
-        Answer: {{pen: 5, ball:5}}
+        Answer: {{'pen': 5, 'ball':5}}
         
-        VALIDATION: [0]
+        VALIDATION: [False]
         
-        Explanation: only the first requirement is satisfied, 5+5=10, while the price of the ball minus the pen's are not 2. Therefore, 0 is given, which is false.
+        Explanation: 
+        Answer suggested that pen is 5 in price, ball is also 5 in price.
+        Check: the price of the ball minus the pen's would be 2, 5-5=0, false for this equation  
+        Therefore, this solution given is not correct, false is given.
         -----------------
         Here are the answer that you are required to valid.
         Question: {question}
@@ -301,17 +342,60 @@ class Thinker:
         
         VALIDATION: (your answer)
         -----------------
-        Please note that only 1 or 0 is needed, explanations are just reference, you need not to give the explanations.
         """
-        ret = self._get_quoted_strs(get_chat(prompt_, self.model, self.temperature))[0]
-        while not (ret == '1' or ret == '0'):
-            ret = self._get_quoted_strs(get_chat(prompt_, self.model, self.temperature))[0]
-        if ret == '1':
+        ret = get_chat(prompt_, model=self.model, temperature = self.temperature)
+        print(ret)
+        ret = self._get_quoted_strs(ret)[0]
+        while not (ret.lower() == 'true' or ret.lower() == 'false'):
+            ret = self._get_quoted_strs(get_chat(prompt_, model = self.model, temperature = self.temperature))[0]
+        if ret.lower() == 'true':
             return 1
         return 0
 
-    def _ans_extract(self, result, question):
+    def _question_extract(self, problem):
+        '''Extract question part from the problem'''
+        prompt_ = f"""
+        You are now playing a extraction game. You are required to extract the question part of the problem.
+        Try to classify the question and information in the problem, exclude the information part, but extract the question content.
+        Focus on the W-H words, (what, when, which, how, why). They will give your hints on where the question is included in the problem.
+        Quote your answer in [ ]
+        
+        Here are some example situation for you to follow:
+        -----------------
+        example 1:
+        Problem: The prices of pen and ball are 10 dollars, the prices of the pen minus the ball are 4 dollars, what is the prices of the ball?
+        
+        Question: [what is the prices of tha ball?]
+        
+        This example shows that there are two parts in the problem, (information and question parts). 
+        Information part is the part telling some relationship between the price of pen and ball.
+        Question part is the part include what the problem want to ask. (For W-H words, 'what' is used to indicate the question part)
+        Only include the question part in the answer.
+        -----------------
+        example 2:
+        Problem: when did first world war start? 
+        
+        Question: [when did first world war start?]
+        
+        This example shows that there is only single part in the problem, (question part).
+        So directly 'When' is used to indicate the question part.
+        ----------------
+        Here are your time.
+        
+        Problem: {problem}
+        
+        Question: (your answer)
+        ---------------
+        """
+        ret = self._get_quoted_strs(get_chat(prompt_, model=self.model, temperature=self.temperature))
+        return ret
+        pass
+
+
+
+    def _ans_extract(self, result, problem):
         '''Remove any unnecessary answer to this question'''
+        question = self._question_extract(problem)
         prompt_ = f"""
         You are now checking the answer generated by you previously, based on a question.
         Try to determine there exists unnecessary answer which the question doesn't require in the generated result or not. It is sure that the answer given is correct, but may contain redundant information.
@@ -321,16 +405,16 @@ class Thinker:
         Here are some example situation for you to follow:
         -----------------
         example 1: 
-        Question: The price of tha ball and pen are 10, and the price of the ball minus the pen's are 2. What is the price of pen?
+        Question: What is the price of pen?
         Answer: {{pen: 4, ball: 6}}
 
         Refined: [{{pen: 4}}]
 
-        Explanation: only prices of pen is needed. Therefore, the price of the
+        Explanation: only prices of pen is needed. Therefore, the price of the ball is neglected.
         ----------------
 
         example 2:
-        Question: The price of tha ball and pen are 10, and the price of the ball minus the pen's are 2. What is the price of pen and ball?
+        Question: What is the price of pen and ball?
         Answer: {{pen: 4, ball: 6}}
 
         Refined: [{{pen: 4, ball: 6}}]
@@ -345,7 +429,7 @@ class Thinker:
         ---------------
         Please note that explanations are just reference, you need not to give the explanations.
         """
-        ret = self._get_quoted_strs(get_chat(prompt_, self.model, self.temperature))[0]
+        ret = self._get_quoted_strs(get_chat(prompt_, model=self.model, temperature=self.temperature))[0]
         return ret
 
     def _prompt_for_prompt_generation(self):
@@ -362,7 +446,7 @@ class Thinker:
 
     def _python_code_for_atom(self, input_values, output_values, atom_prompts, false_codes: list[str, ...]) -> str:
         '''python scripts for atoms that could be processed by python/ without gpt directly'''
-        if len(false_codes)==0:
+        if len(false_codes) == 0:
             _false_codes = "No false code is provided in this problem"
         else:
             _false_codes = "Here are some false code example to build this function, you may debug one of them or create a new function to the atom \n"
@@ -420,7 +504,7 @@ class Thinker:
         prompt_ = f"""
         You are now facing a challenge related to python,
         you will be given the datatype about a variable and a description on that.
-        Try to think a correct example of the content of the variable.
+        Try to think a correct instance of the content of the variable.
         Quote the answer with a extra ( ).
         
         Here are some example situation for you to follow:
@@ -454,51 +538,84 @@ class Thinker:
         Data_types: {data_types}
         Description: {input_prompt}
         
-        Answer: (your answer)
+        Answer: [your answer]
         ----------------
         Please note that explanations are just reference, you need not to give the explanations.
         """
-        ret = get_chat(prompt_, self.model, self.temperature)
-        return re.findall(r'.*?\((.*?)\).*?', ret)[0]
+        ret = get_chat(prompt_, model = self.model, temperature = self.temperature)
+        print(ret)
+        ret = ret[ret.find("(")+1:ret.rfind(")")]
+        if ret[0] == "'" or ret[0] == '"':
+            ret = ret[1:]
+        if ret[-1] == "'" or ret[-1] == '"':
+            ret = ret[:-1]
+        return ret
 
 
-    def _create_promptedobject(self, promptetype: Union[Atom, Value], prompt_: str, sub_cls_name: str, input_value: list, output_value: list):
+    def _create_promptedobject(self, promptetype: Union[Atom, Value], prompt_: str, sub_cls_name: str, input_value: list = [], output_value: list=[]):
         '''Creating new atom and value needed'''
         if promptetype == Atom:
-            class TempPromptedObject(promptetype):
-                prompt = prompt_
-                inputs = tuple(*input_value)
-                outputs = tuple(*output_value)
-                @classmethod
-                def run(cls, *inputs):
-                    cls.function_create()
-                    ast_obj = ast.parse(cls.scripts)
-                    plain_text = ast.unparse(ast_obj)
-                    exec(plain_text)
-                    return cls.running(*inputs)
-                @classmethod
-                def function_create(cls, change=False):
-                    if change:
-                        cls.false_codes.append(cls.scripts)
-                        cls.scripts = self._python_code_for_atom(input_value, output_value, prompt_, cls.false_codes)
+            prompt = prompt_
+            inputs = tuple(input_value)
+            outputs = tuple(output_value)
+            @classmethod
+            def run(cls, *inputs):
+                cls.function_create()
+                ast_obj = ast.parse(cls.scripts)
+                plain_text = ast.unparse(ast_obj)
+                exec(plain_text)
+                return cls.running(*inputs)
+            @classmethod
+            def function_create(cls, change=False):
+                if change:
+                    cls.false_codes.append(cls.scripts)
+                    cls.scripts = self._python_code_for_atom(input_value, output_value, prompt_, cls.false_codes)
+                else:
+                    if cls.scripts is not None:
+                        return cls.scripts
                     else:
-                        if cls.scripts is not None:
-                            return cls.scripts
-                        else:
-                            cls.scripts = self._python_code_for_atom(input_value, output_value, prompt_, cls.false_codes)
+                        cls.scripts = self._python_code_for_atom(input_value, output_value, prompt_, cls.false_codes)
+
+            run_code = inspect.getsource(run)
+            run_code_line = run_code.count('\n')
+            function_create_code = inspect.getsource(function_create)
+            function_create_code_line = function_create_code.count('\n')
+            with open(os.path.join(os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__))), "Storage.txt"), 'a') as store:
+                string = f"atom\n{sub_cls_name}\n{prompt}\n{inputs}\n{outputs}\n{run_code_line}\n{run_code}\n{function_create_code}\n{function_create_code_line}\n"
+                store.write(string)
+
+            Atom.cls_dict()[sub_cls_name] = ""
+            return type(sub_cls_name, (Atom,), {
+                # class attribute
+                "prompt": prompt,
+                "inputs": inputs,
+                "outputs": outputs,
+
+                # member functions
+                "run": run,
+                "function_create": function_create
+            })
 
         elif promptetype == Value:
-            class TempPromptedObject(promptetype):
-                prompt = prompt_
-                expected_type = self._datatype_guess(prompt_)
-                converter = Converter[expected_type]
-                example_prompt = self.example_format_form(expected_type, prompt)
-        else:
-            return None
+            prompt = prompt_
+            expected_type = self._datatype_guess(prompt_)
+            converter = Converter[expected_type]
+            example_prompt = self.example_format_form(expected_type, prompt)
 
-        TempPromptedObject.__qualname__ = sub_cls_name
-        TempPromptedObject.cls_dict()[sub_cls_name] = TempPromptedObject
-        return TempPromptedObject
+            with open(os.path.join(os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__))), "Storage.txt"), 'a') as store:
+                string = f"value\n{sub_cls_name}\n{prompt}\n{expected_type.__name__}\n{converter.type_name()}\n{example_prompt}\n"
+                store.write(string)
+
+            Value.cls_dict()[sub_cls_name] = ""
+            print(ValueMeta.cls_dict()[sub_cls_name])
+            return type(sub_cls_name, (Value,), {
+                # class attribute
+                "prompt": prompt,
+                "expected_type": expected_type,
+                "converter": converter,
+                "example_prompt": example_prompt
+            })
+        return None
 
     # endregion
     def create_atom_input_value(self,input_value_prompts, atom_prompt, value):
@@ -512,11 +629,13 @@ class Thinker:
             input_value = self._create_promptedobject(promptetype=Value, prompt_=input_value_prompt, sub_cls_name=input_value_prompt)
             cypher = input_value.create_subcls_cyphers()
             session.run(cypher)
+            input_value.kg_id()
             input_value_lists.append(input_value)
 
         atom = self._create_promptedobject(promptetype=Atom, prompt_=atom_prompt, sub_cls_name=atom_prompt, input_value=input_value_lists, output_value=[value])
         cypher = atom.create_subcls_cyphers()
         session.run(cypher)
+        atom.kg_id()
         cypher1 = atom.build_output_relationship_value()
         cypher2 = atom.build_input_relationship_value()
         session.run(cypher1)
@@ -528,7 +647,6 @@ class Thinker:
         pass
 
     def _fix_atom(self, atom):
-        '''If error in new-created atom, fix it here'''
         try:
             function_create = getattr(atom, 'function_create')
             if callable(function_create):
@@ -627,7 +745,6 @@ class Thinker:
         return atom, input_value_lists
 
     def think(self, question: str):
-        '''The overall algorithm'''
         lists_of_io_node: list[Node, ...] = []
         '''the list of storing unprocessed node instance of input/output value used in this problem'''
         lists_of_value: list[Value, ...] = []
@@ -646,8 +763,9 @@ class Thinker:
         else:
             # there is no required output value, i.e. we have to create one
             output_value = self._create_promptedobject(promptetype=Value, prompt_=output, sub_cls_name=output)
-            cypher = output.create_subcls_cyphers()
+            cypher = Value.create_subcls_cyphers(output_value)
             session.run(cypher)
+            output_value.kg_id()
 
         print(output_value, output_value.prompt)
 
@@ -702,9 +820,10 @@ class Thinker:
             self._fix_cycle()
             return self.think(question)
         ret = self._check_for_correctness(ret, chains_of_node, lists_of_value, lists_of_io_node)
-        if self._voting_for_ans(ret, question, 10 ,0.8):
-            return self._ans_extract(ret, question)
-        return self.think(question)
+        # if self._voting_for_ans(ret, question, 10, 0.8):
+        # return self._ans_extract(ret, question)
+        # return self.think(question)
+        return ret
 
 
     def think_for_possible_func(self, purpose:str, outputs, linked: True, lists_atom:[Atom,...] = [])->Atom:
